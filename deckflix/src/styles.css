@@ -1,0 +1,690 @@
+/* Steam Deck Optimized Styles - 1280x800 resolution */
+
+:root {
+  /* Steam Deck specific dimensions */
+  --screen-width: 1280px;
+  --screen-height: 800px;
+
+  /* Typography - Large fonts for readability */
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-size: 18px;
+  line-height: 1.4;
+  font-weight: 400;
+
+  /* Dark theme for battery efficiency */
+  --bg-primary: #0a0a0f;
+  --bg-secondary: #1a1a20;
+  --bg-tertiary: #2a2a35;
+  --text-primary: #ffffff;
+  --text-secondary: #b0b0b0;
+  --accent: #00d4ff;
+  --accent-hover: #0099cc;
+  --success: #00ff88;
+  --error: #ff4444;
+  --warning: #ffaa00;
+
+  /* Focus and interaction colors */
+  --focus-color: #00d4ff;
+  --focus-shadow: 0 0 0 3px rgba(0, 212, 255, 0.5);
+
+  color: var(--text-primary);
+  background-color: var(--bg-primary);
+
+  /* Optimize rendering */
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Reset and base styles */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--bg-primary);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Utility classes */
+.hidden {
+  display: none !important;
+}
+
+.focusable {
+  transition: all 0.2s ease;
+  border: 2px solid transparent;
+}
+
+.focusable:focus,
+.focusable.focused {
+  outline: none;
+  border-color: var(--focus-color);
+  box-shadow: var(--focus-shadow);
+  transform: scale(1.05);
+  z-index: 10;
+}
+
+/* Header */
+.header {
+  background: var(--bg-secondary);
+  padding: 15px 20px;
+  border-bottom: 2px solid var(--bg-tertiary);
+  flex-shrink: 0;
+}
+
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 10px;
+}
+
+.app-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--accent);
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.status-indicator {
+  padding: 8px 16px;
+  background: var(--bg-tertiary);
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* Search container */
+.search-container {
+  position: relative;
+  flex: 1;
+  max-width: 400px;
+  margin: 0 20px;
+}
+
+.search-input {
+  width: 100%;
+  padding: 12px 45px 12px 16px;
+  background: var(--bg-tertiary);
+  border: 2px solid transparent;
+  border-radius: 25px;
+  color: var(--text-primary);
+  font-size: 16px;
+  transition: all 0.2s ease;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.2);
+}
+
+.search-input::placeholder {
+  color: var(--text-secondary);
+}
+
+.search-clear {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 18px;
+  padding: 4px;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+}
+
+.search-clear:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+/* Main content area */
+.main-content {
+  flex: 1;
+  overflow-y: auto;
+  position: relative;
+  padding: 20px 20px 80px 20px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.main-content::-webkit-scrollbar {
+  display: none;
+}
+
+/* Global loading screen */
+.global-loading {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  text-align: center;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--bg-primary);
+  z-index: 50;
+}
+
+/* Global error screen */
+.global-error {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: var(--bg-primary);
+  z-index: 40;
+}
+
+.loading-spinner {
+  width: 60px;
+  height: 60px;
+  border: 4px solid var(--bg-tertiary);
+  border-top: 4px solid var(--accent);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 20px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Content sections */
+.content-section {
+  margin-bottom: 40px;
+}
+
+.section-header {
+  margin-bottom: 20px;
+}
+
+.section-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 5px;
+}
+
+.section-subtitle {
+  font-size: 14px;
+  color: var(--text-secondary);
+  opacity: 0.8;
+}
+
+/* Section loading */
+.section-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px;
+  text-align: center;
+}
+
+.section-loading .loading-spinner {
+  width: 40px;
+  height: 40px;
+  margin-bottom: 15px;
+}
+
+/* Section error */
+.section-error {
+  text-align: center;
+  padding: 40px;
+  color: var(--text-secondary);
+}
+
+.retry-btn {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 2px solid var(--bg-tertiary);
+  padding: 10px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  margin-top: 15px;
+  transition: all 0.2s ease;
+}
+
+.retry-btn:hover,
+.retry-btn:focus {
+  border-color: var(--accent);
+  background: var(--bg-secondary);
+}
+
+/* Content grids */
+.content-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 20px;
+  padding: 10px;
+}
+
+/* Continue watching specific grid */
+.continue-watching-grid {
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 15px;
+}
+
+/* Content cards (movies, series, anime) */
+.content-card,
+.movie-card {
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  aspect-ratio: 2/3;
+  position: relative;
+  border: 2px solid transparent;
+}
+
+/* Continue watching cards have different aspect ratio */
+.continue-watching-card {
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  aspect-ratio: 16/9;
+  position: relative;
+  border: 2px solid transparent;
+}
+
+.content-card:hover,
+.movie-card:hover,
+.continue-watching-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+}
+
+.content-poster,
+.movie-poster {
+  width: 100%;
+  height: 70%;
+  object-fit: cover;
+  background: var(--bg-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  font-size: 14px;
+  position: relative;
+}
+
+/* Continue watching poster adjustments */
+.continue-watching-card .content-poster {
+  height: 75%;
+}
+
+/* Progress bar for continue watching */
+.progress-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 4px;
+  background: var(--accent);
+  border-radius: 0 0 2px 2px;
+  transition: width 0.3s ease;
+}
+
+.progress-background {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 0 0 2px 2px;
+}
+
+.content-poster img,
+.movie-poster img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.content-info,
+.movie-info {
+  padding: 12px;
+  height: 30%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+/* Continue watching info adjustments */
+.continue-watching-card .content-info {
+  height: 25%;
+  padding: 10px;
+}
+
+.content-title,
+.movie-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-bottom: 4px;
+}
+
+/* Content type indicator */
+.content-type {
+  display: inline-block;
+  background: var(--bg-primary);
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.content-details,
+.movie-details {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.content-year,
+.movie-year {
+  opacity: 0.8;
+}
+
+.content-rating,
+.movie-rating {
+  background: var(--accent);
+  color: var(--bg-primary);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 11px;
+}
+
+/* Error screen */
+.error-screen {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+}
+
+.error-content {
+  text-align: center;
+  max-width: 400px;
+}
+
+.error-content h2 {
+  font-size: 24px;
+  margin-bottom: 16px;
+  color: var(--error);
+}
+
+.error-content p {
+  font-size: 16px;
+  margin-bottom: 24px;
+  color: var(--text-secondary);
+}
+
+/* Buttons */
+.btn {
+  padding: 12px 24px;
+  font-size: 16px;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+  min-width: 120px;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: var(--bg-primary);
+}
+
+.btn-primary:hover,
+.btn-primary:focus {
+  background: var(--accent-hover);
+  transform: translateY(-2px);
+}
+
+.btn-secondary {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 2px solid var(--bg-tertiary);
+}
+
+.btn-secondary:hover,
+.btn-secondary:focus {
+  border-color: var(--accent);
+}
+
+/* Modal */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: var(--bg-secondary);
+  border-radius: 16px;
+  width: 90%;
+  max-width: 600px;
+  max-height: 80%;
+  display: flex;
+  flex-direction: column;
+  border: 2px solid var(--bg-tertiary);
+}
+
+.modal-header {
+  padding: 20px;
+  border-bottom: 2px solid var(--bg-tertiary);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-header h2 {
+  font-size: 20px;
+  color: var(--text-primary);
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 5px;
+  transition: color 0.2s ease;
+}
+
+.close-btn:hover {
+  color: var(--text-primary);
+}
+
+.modal-body {
+  padding: 20px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.modal-footer {
+  padding: 15px 20px;
+  border-top: 2px solid var(--bg-tertiary);
+  background: var(--bg-tertiary);
+}
+
+/* Streams list */
+.streams-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.stream-item {
+  background: var(--bg-tertiary);
+  padding: 15px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 2px solid transparent;
+}
+
+.stream-item:hover,
+.stream-item:focus {
+  background: var(--bg-primary);
+  border-color: var(--accent);
+}
+
+.stream-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 5px;
+  color: var(--text-primary);
+}
+
+.stream-quality {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+/* Controller hints */
+.controls-overlay {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  display: flex;
+  gap: 10px;
+  z-index: 100;
+  opacity: 0.7;
+}
+
+.control-hint {
+  background: var(--bg-secondary);
+  padding: 8px 12px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--bg-tertiary);
+}
+
+.control-key {
+  background: var(--accent);
+  color: var(--bg-primary);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 12px;
+  min-width: 24px;
+  text-align: center;
+}
+
+.control-action {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.controls-hint {
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 14px;
+  margin-top: 10px;
+}
+
+/* Focus management for controller navigation */
+.content-card.focused,
+.movie-card.focused,
+.continue-watching-card.focused {
+  border-color: var(--focus-color);
+  box-shadow: var(--focus-shadow);
+  transform: scale(1.05);
+}
+
+.search-input.focused {
+  border-color: var(--focus-color);
+  box-shadow: var(--focus-shadow);
+}
+
+.stream-item.focused {
+  border-color: var(--focus-color);
+  box-shadow: var(--focus-shadow);
+}
+
+.btn.focused {
+  border: 2px solid var(--focus-color);
+  box-shadow: var(--focus-shadow);
+}
+
+/* Responsive adjustments for Steam Deck */
+@media (max-width: 1280px) {
+  .content-grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 15px;
+  }
+
+  .continue-watching-grid {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  }
+
+  .search-container {
+    max-width: 300px;
+    margin: 0 15px;
+  }
+
+  .app-title {
+    font-size: 24px;
+  }
+
+  .section-title {
+    font-size: 20px;
+  }
+
+  .control-hint {
+    padding: 6px 10px;
+  }
+
+  .header-content {
+    gap: 15px;
+  }
+}

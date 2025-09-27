@@ -1,0 +1,74 @@
+Steam Deck Streaming App - Simplified Project Guide
+Project Overview
+Building a Tauri-based streaming app that uses Stremio addon APIs with Steam Deck controller support.
+Tech Stack
+
+Backend: Rust + Tauri
+Frontend: HTML/CSS/JavaScript
+Video: External player (mpv/vlc)
+Controllers: Gamepad API
+
+Project Structure
+steam-deck-streaming/
+├── src-tauri/
+│   ├── src/
+│   │   ├── main.rs           # Tauri commands
+│   │   ├── addon_client.rs   # Stremio API client
+│   │   └── models.rs         # Data structures
+│   └── Cargo.toml            # Rust dependencies
+└── src/
+    ├── index.html            # UI layout
+    ├── styles.css            # Steam Deck optimized styling
+    ├── app.js               # Main app logic
+    └── controller.js         # Gamepad handling
+Core Components
+1. Rust Backend (Tauri Commands)
+rust#[tauri::command]
+async fn fetch_popular_movies() -> Result<Vec<Movie>, String>
+
+#[tauri::command] 
+async fn fetch_streams(imdb_id: String) -> Result<Vec<Stream>, String>
+
+#[tauri::command]
+async fn play_video_external(stream_url: String) -> Result<(), String>
+2. Stremio Addon Integration
+
+Fetch from addon URLs: {addon_url}/catalog/movie/popular.json
+Get streams: {addon_url}/stream/movie/{imdb_id}.json
+Parse JSON responses for movies/streams
+
+3. Frontend Features
+
+Grid layout like Netflix for movies
+Controller navigation with focus indicators
+Stream selection modal for multiple sources
+Status messages for user feedback
+
+4. Controller Support
+
+Navigation: D-pad/analog sticks move focus
+A button: Select/confirm
+B button: Back/cancel
+Bumpers: Switch sections
+
+Development Workflow
+
+cargo create-tauri-app to initialize
+Add Rust dependencies: reqwest, serde, tokio
+Implement addon client for Stremio APIs
+Build controller-friendly UI with large focus indicators
+Test with cargo tauri dev
+Build with cargo tauri build
+Deploy to Steam Deck and add to Steam
+
+Key Files
+main.rs: Tauri app with HTTP client for addon APIs
+app.js: UI logic, movie display, stream handling
+controller.js: Gamepad polling and navigation
+styles.css: Large buttons, focus styles, grid layout
+Steam Deck Deployment
+
+Copy AppImage or install .deb package
+Add as non-Steam game
+Configure controller layout
+Install video player (mpv/vlc)

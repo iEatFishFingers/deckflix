@@ -1,0 +1,1191 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DeckFlix</title>
+    <style>
+        :root {
+            /* Steam Deck specific dimensions */
+            --screen-width: 1280px;
+            --screen-height: 800px;
+
+            /* Dark theme for battery efficiency */
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #1a1a20;
+            --bg-tertiary: #2a2a30;
+            --accent: #00d4ff;
+            --accent-hover: #0099cc;
+            --text-primary: #ffffff;
+            --text-secondary: #b0b0b0;
+            --text-muted: #808080;
+
+            /* Focus system for controller navigation */
+            --focus-color: #00d4ff;
+            --focus-shadow: 0 0 0 3px rgba(0, 212, 255, 0.5);
+
+            /* Spacing */
+            --padding-sm: 10px;
+            --padding-md: 20px;
+            --padding-lg: 30px;
+            --border-radius: 8px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            background: var(--bg-secondary);
+            padding: var(--padding-md);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--bg-tertiary);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: var(--accent);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .search-container {
+            flex: 1;
+            max-width: 600px;
+            margin: 0 var(--padding-lg);
+            position: relative;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 12px 50px 12px var(--padding-md);
+            background: var(--bg-tertiary);
+            border: 2px solid transparent;
+            border-radius: var(--border-radius);
+            color: var(--text-primary);
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--focus-color);
+            box-shadow: var(--focus-shadow);
+        }
+
+        .search-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .search-icon {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+        }
+
+        .header-actions {
+            display: flex;
+            gap: var(--padding-md);
+            align-items: center;
+        }
+
+        .status-indicator {
+            padding: 6px 12px;
+            background: var(--bg-tertiary);
+            border-radius: var(--border-radius);
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        /* Main Content */
+        .main-content {
+            padding: var(--padding-md);
+            max-height: calc(100vh - 80px);
+            overflow-y: auto;
+        }
+
+        /* Content Sections */
+        .content-section {
+            margin-bottom: var(--padding-lg);
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: var(--padding-md);
+        }
+
+        .section-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .see-all-link {
+            color: var(--accent);
+            text-decoration: none;
+            font-size: 16px;
+            padding: 8px 16px;
+            border-radius: var(--border-radius);
+            transition: all 0.3s ease;
+        }
+
+        .see-all-link:hover,
+        .see-all-link:focus {
+            background: var(--bg-tertiary);
+            color: var(--accent-hover);
+        }
+
+        /* Content Grid */
+        .content-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: var(--padding-md);
+            min-height: 280px;
+        }
+
+        .content-card {
+            background: var(--bg-secondary);
+            border-radius: var(--border-radius);
+            overflow: hidden;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+            aspect-ratio: 2/3;
+        }
+
+        .content-card:hover,
+        .content-card:focus {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .focusable:focus,
+        .focusable.focused {
+            outline: none;
+            border: 2px solid var(--focus-color);
+            box-shadow: var(--focus-shadow);
+            transform: scale(1.05);
+            z-index: 10;
+        }
+
+        .content-poster {
+            width: 100%;
+            height: 100%;
+            background: var(--bg-tertiary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+            font-size: 14px;
+            position: relative;
+        }
+
+        .content-poster img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .content-info {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+            padding: var(--padding-md);
+            color: white;
+        }
+
+        .content-title {
+            font-size: 14px;
+            font-weight: 500;
+            line-height: 1.2;
+            margin-bottom: 4px;
+        }
+
+        .content-meta {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        /* Continue Watching specific styles */
+        .continue-watching .content-card {
+            position: relative;
+        }
+
+        .progress-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            height: 4px;
+            background: var(--accent);
+            transition: width 0.3s ease;
+        }
+
+        /* Loading States */
+        .loading-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 200px;
+            color: var(--text-secondary);
+        }
+
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--bg-tertiary);
+            border-top: 3px solid var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: var(--padding-md);
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Search Results */
+        .search-results {
+            display: none;
+            background: var(--bg-secondary);
+            border-radius: var(--border-radius);
+            margin-bottom: var(--padding-lg);
+            padding: var(--padding-md);
+        }
+
+        .search-results.visible {
+            display: block;
+        }
+
+        /* Modal */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            backdrop-filter: blur(5px);
+        }
+
+        .modal.hidden {
+            display: none;
+        }
+
+        .modal-content {
+            background: var(--bg-secondary);
+            border-radius: var(--border-radius);
+            padding: var(--padding-lg);
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            margin: var(--padding-md);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--padding-md);
+        }
+
+        .modal-title {
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .close-button {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 24px;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: var(--border-radius);
+        }
+
+        .close-button:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .streams-list {
+            display: flex;
+            flex-direction: column;
+            gap: var(--padding-sm);
+        }
+
+        .stream-item {
+            background: var(--bg-tertiary);
+            padding: var(--padding-md);
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+
+        .stream-item:hover,
+        .stream-item:focus {
+            background: var(--bg-primary);
+            border-color: var(--accent);
+            transform: translateX(5px);
+        }
+
+        .stream-title {
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .stream-quality {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        /* Error States */
+        .error-message {
+            background: #ff4444;
+            color: white;
+            padding: var(--padding-md);
+            border-radius: var(--border-radius);
+            margin-bottom: var(--padding-md);
+            text-align: center;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 1280px) {
+            .content-grid {
+                grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+                gap: 15px;
+            }
+
+            .header {
+                padding: 15px;
+            }
+
+            .search-container {
+                margin: 0 15px;
+            }
+        }
+
+        /* Navigation tabs for categories */
+        .nav-tabs {
+            display: flex;
+            gap: var(--padding-md);
+            margin-bottom: var(--padding-lg);
+            border-bottom: 1px solid var(--bg-tertiary);
+        }
+
+        .nav-tab {
+            padding: 12px 24px;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 16px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s ease;
+        }
+
+        .nav-tab.active {
+            color: var(--accent);
+            border-bottom-color: var(--accent);
+        }
+
+        .nav-tab:hover {
+            color: var(--text-primary);
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="logo">
+            🎬 DeckFlix
+        </div>
+        
+        <div class="search-container">
+            <input 
+                type="text" 
+                id="search-input" 
+                class="search-input focusable" 
+                placeholder="Search or paste link"
+                tabindex="1"
+            >
+            <span class="search-icon">🔍</span>
+        </div>
+        
+        <div class="header-actions">
+            <div id="status-indicator" class="status-indicator">
+                Ready
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Search Results (hidden by default) -->
+        <div id="search-results" class="search-results">
+            <div class="section-header">
+                <h2 class="section-title">Search Results</h2>
+            </div>
+            <div id="search-grid" class="content-grid">
+                <!-- Search results will be populated here -->
+            </div>
+        </div>
+
+        <!-- Continue Watching Section -->
+        <section id="continue-watching-section" class="content-section continue-watching" style="display: none;">
+            <div class="section-header">
+                <h2 class="section-title">Continue Watching</h2>
+                <a href="#" class="see-all-link focusable">See All →</a>
+            </div>
+            <div id="continue-watching-grid" class="content-grid">
+                <!-- Continue watching items will be populated here -->
+            </div>
+        </section>
+
+        <!-- Movies Section -->
+        <section id="movies-section" class="content-section">
+            <div class="section-header">
+                <h2 class="section-title">Movies - Popular</h2>
+                <a href="#" class="see-all-link focusable">See All →</a>
+            </div>
+            <div id="movies-loading" class="loading-container">
+                <div class="loading-spinner"></div>
+                <div>Loading popular movies...</div>
+            </div>
+            <div id="movies-grid" class="content-grid" style="display: none;">
+                <!-- Movie cards will be populated here -->
+            </div>
+        </section>
+
+        <!-- Series Section -->
+        <section id="series-section" class="content-section">
+            <div class="section-header">
+                <h2 class="section-title">Series - Popular</h2>
+                <a href="#" class="see-all-link focusable">See All →</a>
+            </div>
+            <div id="series-loading" class="loading-container">
+                <div class="loading-spinner"></div>
+                <div>Loading popular series...</div>
+            </div>
+            <div id="series-grid" class="content-grid" style="display: none;">
+                <!-- Series cards will be populated here -->
+            </div>
+        </section>
+
+        <!-- Anime Section -->
+        <section id="anime-section" class="content-section">
+            <div class="section-header">
+                <h2 class="section-title">Anime - Popular</h2>
+                <a href="#" class="see-all-link focusable">See All →</a>
+            </div>
+            <div id="anime-loading" class="loading-container">
+                <div class="loading-spinner"></div>
+                <div>Loading popular anime...</div>
+            </div>
+            <div id="anime-grid" class="content-grid" style="display: none;">
+                <!-- Anime cards will be populated here -->
+            </div>
+        </section>
+    </main>
+
+    <!-- Stream Selection Modal -->
+    <div id="stream-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-title" class="modal-title">Select Stream</h3>
+                <button class="close-button focusable" onclick="closeStreamModal()">×</button>
+            </div>
+            
+            <div id="streams-loading" class="loading-container">
+                <div class="loading-spinner"></div>
+                <div>Loading available streams...</div>
+            </div>
+            
+            <div id="streams-list" class="streams-list hidden">
+                <!-- Stream options will be populated here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Import Tauri API
+        const { invoke } = window.__TAURI__.core;
+
+        // Application State
+        let appState = {
+            movies: [],
+            series: [],
+            anime: [],
+            continueWatching: [],
+            searchResults: [],
+            currentContent: null,
+            currentStreams: [],
+            isLoading: false,
+            focusedElement: null,
+            focusIndex: 0,
+            currentSection: 'movies'
+        };
+
+        // DOM Elements
+        const elements = {
+            // Headers and Navigation
+            searchInput: document.getElementById('search-input'),
+            searchResults: document.getElementById('search-results'),
+            searchGrid: document.getElementById('search-grid'),
+            statusIndicator: document.getElementById('status-indicator'),
+            
+            // Content Sections
+            continueWatchingSection: document.getElementById('continue-watching-section'),
+            continueWatchingGrid: document.getElementById('continue-watching-grid'),
+            
+            moviesSection: document.getElementById('movies-section'),
+            moviesLoading: document.getElementById('movies-loading'),
+            moviesGrid: document.getElementById('movies-grid'),
+            
+            seriesSection: document.getElementById('series-section'),
+            seriesLoading: document.getElementById('series-loading'),
+            seriesGrid: document.getElementById('series-grid'),
+            
+            animeSection: document.getElementById('anime-section'),
+            animeLoading: document.getElementById('anime-loading'),
+            animeGrid: document.getElementById('anime-grid'),
+            
+            // Modal
+            streamModal: document.getElementById('stream-modal'),
+            modalTitle: document.getElementById('modal-title'),
+            streamsLoading: document.getElementById('streams-loading'),
+            streamsList: document.getElementById('streams-list')
+        };
+
+        // Content Creation Functions
+        function createContentCard(content, index, type = 'movie') {
+            const card = document.createElement('div');
+            card.className = 'content-card focusable';
+            card.dataset.contentIndex = index;
+            card.dataset.contentType = type;
+            card.tabIndex = 0;
+
+            const poster = document.createElement('div');
+            poster.className = 'content-poster';
+
+            if (content.poster) {
+                const img = document.createElement('img');
+                img.src = content.poster;
+                img.alt = content.name || content.title;
+                img.onerror = () => {
+                    poster.innerHTML = `<span>🎬 ${content.name || content.title || 'No Title'}</span>`;
+                };
+                poster.appendChild(img);
+            } else {
+                poster.innerHTML = `<span>🎬 ${content.name || content.title || 'No Title'}</span>`;
+            }
+
+            const info = document.createElement('div');
+            info.className = 'content-info';
+
+            const title = document.createElement('div');
+            title.className = 'content-title';
+            title.textContent = content.name || content.title || 'Unknown Title';
+
+            const meta = document.createElement('div');
+            meta.className = 'content-meta';
+            
+            const metaParts = [];
+            if (content.year) metaParts.push(content.year);
+            if (content.imdb_rating) metaParts.push(`⭐ ${content.imdb_rating}`);
+            if (content.genre && content.genre.length > 0) {
+                metaParts.push(content.genre.slice(0, 2).join(', '));
+            }
+            meta.textContent = metaParts.join(' • ');
+
+            info.appendChild(title);
+            info.appendChild(meta);
+
+            // Add progress bar for continue watching
+            if (type === 'continue-watching' && content.progress) {
+                const progressBar = document.createElement('div');
+                progressBar.className = 'progress-bar';
+                progressBar.style.width = `${content.progress}%`;
+                card.appendChild(progressBar);
+            }
+
+            card.appendChild(poster);
+            card.appendChild(info);
+
+            // Event listeners
+            card.addEventListener('click', () => selectContent(content, type));
+            card.addEventListener('focus', () => setFocusedElement(card));
+
+            return card;
+        }
+
+        function createStreamItem(stream, index) {
+            const item = document.createElement('div');
+            item.className = 'stream-item focusable';
+            item.tabIndex = 0;
+            item.dataset.streamIndex = index;
+
+            const title = document.createElement('div');
+            title.className = 'stream-title';
+            title.textContent = stream.title || stream.name || 'Unknown Stream';
+
+            const quality = document.createElement('div');
+            quality.className = 'stream-quality';
+            quality.textContent = extractQuality(stream.title) || 'Quality: Unknown';
+
+            item.appendChild(title);
+            item.appendChild(quality);
+
+            item.addEventListener('click', () => playStream(stream));
+
+            return item;
+        }
+
+        // Content Display Functions
+        function displayMovies(movies) {
+            elements.moviesLoading.style.display = 'none';
+            elements.moviesGrid.style.display = 'grid';
+            elements.moviesGrid.innerHTML = '';
+
+            if (movies.length === 0) {
+                elements.moviesGrid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: var(--text-secondary);">No movies found</div>';
+                return;
+            }
+
+            const fragment = document.createDocumentFragment();
+            movies.forEach((movie, index) => {
+                fragment.appendChild(createContentCard(movie, index, 'movie'));
+            });
+            elements.moviesGrid.appendChild(fragment);
+        }
+
+        function displaySeries(series) {
+            elements.seriesLoading.style.display = 'none';
+            elements.seriesGrid.style.display = 'grid';
+            elements.seriesGrid.innerHTML = '';
+
+            if (series.length === 0) {
+                elements.seriesGrid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: var(--text-secondary);">No series found</div>';
+                return;
+            }
+
+            const fragment = document.createDocumentFragment();
+            series.forEach((show, index) => {
+                fragment.appendChild(createContentCard(show, index, 'series'));
+            });
+            elements.seriesGrid.appendChild(fragment);
+        }
+
+        function displayAnime(anime) {
+            elements.animeLoading.style.display = 'none';
+            elements.animeGrid.style.display = 'grid';
+            elements.animeGrid.innerHTML = '';
+
+            if (anime.length === 0) {
+                elements.animeGrid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: var(--text-secondary);">No anime found</div>';
+                return;
+            }
+
+            const fragment = document.createDocumentFragment();
+            anime.forEach((show, index) => {
+                fragment.appendChild(createContentCard(show, index, 'anime'));
+            });
+            elements.animeGrid.appendChild(fragment);
+        }
+
+        function displayContinueWatching(items) {
+            if (items.length === 0) {
+                elements.continueWatchingSection.style.display = 'none';
+                return;
+            }
+
+            elements.continueWatchingSection.style.display = 'block';
+            elements.continueWatchingGrid.innerHTML = '';
+
+            const fragment = document.createDocumentFragment();
+            items.forEach((item, index) => {
+                fragment.appendChild(createContentCard(item, index, 'continue-watching'));
+            });
+            elements.continueWatchingGrid.appendChild(fragment);
+        }
+
+        function displaySearchResults(results) {
+            elements.searchGrid.innerHTML = '';
+
+            if (results.length === 0) {
+                elements.searchGrid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: var(--text-secondary);">No results found</div>';
+                return;
+            }
+
+            const fragment = document.createDocumentFragment();
+            results.forEach((item, index) => {
+                fragment.appendChild(createContentCard(item, index, 'search'));
+            });
+            elements.searchGrid.appendChild(fragment);
+        }
+
+        // Content Loading Functions
+        async function loadMovies() {
+            try {
+                setLoadingState('movies', true);
+                const movies = await invoke('fetch_popular_movies');
+                appState.movies = movies;
+                displayMovies(movies);
+                updateStatus(`Loaded ${movies.length} movies`);
+            } catch (error) {
+                console.error('Failed to load movies:', error);
+                showError('Failed to load movies: ' + error);
+                elements.moviesLoading.innerHTML = '<div style="color: #ff4444;">Failed to load movies</div>';
+            }
+        }
+
+        async function loadSeries() {
+            try {
+                setLoadingState('series', true);
+                // For now, we'll use the same endpoint and filter or create mock data
+                const series = await invoke('fetch_popular_series').catch(() => {
+                    // Fallback: create mock series data
+                    return appState.movies.slice(0, 10).map(movie => ({
+                        ...movie,
+                        type: 'series',
+                        seasons: Math.floor(Math.random() * 10) + 1
+                    }));
+                });
+                appState.series = series;
+                displaySeries(series);
+                updateStatus(`Loaded ${series.length} series`);
+            } catch (error) {
+                console.error('Failed to load series:', error);
+                showError('Failed to load series: ' + error);
+                elements.seriesLoading.innerHTML = '<div style="color: #ff4444;">Failed to load series</div>';
+            }
+        }
+
+        async function loadAnime() {
+            try {
+                setLoadingState('anime', true);
+                // For now, we'll use the same endpoint and filter or create mock data
+                const anime = await invoke('fetch_popular_anime').catch(() => {
+                    // Fallback: create mock anime data
+                    return appState.movies.slice(0, 8).map(movie => ({
+                        ...movie,
+                        type: 'anime',
+                        episodes: Math.floor(Math.random() * 24) + 12
+                    }));
+                });
+                appState.anime = anime;
+                displayAnime(anime);
+                updateStatus(`Loaded ${anime.length} anime`);
+            } catch (error) {
+                console.error('Failed to load anime:', error);
+                showError('Failed to load anime: ' + error);
+                elements.animeLoading.innerHTML = '<div style="color: #ff4444;">Failed to load anime</div>';
+            }
+        }
+
+        async function loadContinueWatching() {
+            try {
+                // Load from local storage or backend
+                const continueWatching = JSON.parse(localStorage.getItem('continueWatching') || '[]');
+                appState.continueWatching = continueWatching;
+                displayContinueWatching(continueWatching);
+            } catch (error) {
+                console.error('Failed to load continue watching:', error);
+            }
+        }
+
+        // Search Functions
+        async function performSearch(query) {
+            if (!query.trim()) {
+                elements.searchResults.classList.remove('visible');
+                return;
+            }
+
+            try {
+                updateStatus('Searching...');
+                
+                // Search in loaded content first
+                const allContent = [...appState.movies, ...appState.series, ...appState.anime];
+                const localResults = allContent.filter(item => 
+                    (item.name || item.title || '').toLowerCase().includes(query.toLowerCase()) ||
+                    (item.description || '').toLowerCase().includes(query.toLowerCase())
+                );
+
+                // For now, show local results
+                // In the future, this could call a backend search endpoint
+                appState.searchResults = localResults;
+                displaySearchResults(localResults);
+                elements.searchResults.classList.add('visible');
+                
+                updateStatus(`Found ${localResults.length} results`);
+            } catch (error) {
+                console.error('Search failed:', error);
+                showError('Search failed: ' + error);
+            }
+        }
+
+        // Content Selection and Playback
+        async function selectContent(content, type) {
+            try {
+                appState.currentContent = content;
+                elements.modalTitle.textContent = `${content.name || content.title} - Select Stream`;
+                
+                // Show modal
+                elements.streamModal.classList.remove('hidden');
+                elements.streamsLoading.classList.remove('hidden');
+                elements.streamsList.classList.add('hidden');
+
+                // Fetch streams
+                const streams = await invoke('fetch_streams', { imdbId: content.id });
+                appState.currentStreams = streams;
+                displayStreams(streams);
+                
+            } catch (error) {
+                console.error('Failed to fetch streams:', error);
+                showError('Failed to fetch streams: ' + error);
+                closeStreamModal();
+            }
+        }
+
+        function displayStreams(streams) {
+            elements.streamsLoading.classList.add('hidden');
+            elements.streamsList.innerHTML = '';
+
+            if (streams.length === 0) {
+                elements.streamsList.innerHTML = '<div style="text-align: center; color: var(--text-secondary); padding: 20px;">No streams available</div>';
+                elements.streamsList.classList.remove('hidden');
+                return;
+            }
+
+            const fragment = document.createDocumentFragment();
+            streams.forEach((stream, index) => {
+                fragment.appendChild(createStreamItem(stream, index));
+            });
+            elements.streamsList.appendChild(fragment);
+            elements.streamsList.classList.remove('hidden');
+
+            // Focus first stream
+            const firstStream = elements.streamsList.querySelector('.stream-item');
+            if (firstStream) {
+                firstStream.focus();
+            }
+        }
+
+        async function playStream(stream) {
+            try {
+                console.log('Playing stream:', stream.url);
+
+                // Show loading feedback
+                const loadingMsg = document.createElement('div');
+                loadingMsg.textContent = 'Launching video player...';
+                loadingMsg.style.cssText = `
+                    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+                    background: var(--bg-secondary); padding: 20px; border-radius: 8px; z-index: 2000;
+                `;
+                document.body.appendChild(loadingMsg);
+
+                const result = await invoke('play_video_external', { streamUrl: stream.url });
+                console.log('Player launched:', result);
+
+                // Add to continue watching
+                if (appState.currentContent) {
+                    addToContinueWatching(appState.currentContent);
+                }
+
+                document.body.removeChild(loadingMsg);
+                closeStreamModal();
+
+            } catch (error) {
+                console.error('Failed to play stream:', error);
+                showError('Failed to launch video player: ' + error);
+            }
+        }
+
+        function addToContinueWatching(content) {
+            let continueWatching = JSON.parse(localStorage.getItem('continueWatching') || '[]');
+            
+            // Remove if already exists
+            continueWatching = continueWatching.filter(item => item.id !== content.id);
+            
+            // Add to beginning with random progress for demo
+            const item = {
+                ...content,
+                progress: Math.floor(Math.random() * 60) + 10, // 10-70% progress
+                lastWatched: new Date().toISOString()
+            };
+            continueWatching.unshift(item);
+            
+            // Keep only last 20 items
+            continueWatching = continueWatching.slice(0, 20);
+            
+            localStorage.setItem('continueWatching', JSON.stringify(continueWatching));
+            appState.continueWatching = continueWatching;
+            displayContinueWatching(continueWatching);
+        }
+
+        // Modal Functions
+        function closeStreamModal() {
+            elements.streamModal.classList.add('hidden');
+            if (appState.focusedElement) {
+                appState.focusedElement.focus();
+            }
+        }
+
+        // Utility Functions
+        function extractQuality(title) {
+            if (!title) return null;
+
+            const qualityPatterns = [
+                /4K|2160p/i, /1080p/i, /720p/i, /480p/i,
+                /CAM/i, /TS/i, /HDRip/i, /BluRay/i, /WEBRip/i
+            ];
+
+            for (const pattern of qualityPatterns) {
+                const match = title.match(pattern);
+                if (match) return `Quality: ${match[0]}`;
+            }
+            return null;
+        }
+
+        function setLoadingState(section, isLoading) {
+            // Update loading states for specific sections
+        }
+
+        function updateStatus(message) {
+            elements.statusIndicator.textContent = message;
+            setTimeout(() => {
+                elements.statusIndicator.textContent = 'Ready';
+            }, 3000);
+        }
+
+        function showError(message) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error-message';
+            errorDiv.textContent = message;
+            document.body.insertBefore(errorDiv, document.body.firstChild);
+            
+            setTimeout(() => {
+                if (errorDiv.parentNode) {
+                    errorDiv.parentNode.removeChild(errorDiv);
+                }
+            }, 5000);
+        }
+
+        function setFocusedElement(element) {
+            if (appState.focusedElement) {
+                appState.focusedElement.classList.remove('focused');
+            }
+            appState.focusedElement = element;
+            element.classList.add('focused');
+            element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        // Keyboard Navigation
+        function handleKeyboard(e) {
+            if (e.target === elements.searchInput) return; // Let search input handle its own keys
+
+            const isModalOpen = !elements.streamModal.classList.contains('hidden');
+            
+            if (isModalOpen) {
+                handleModalKeyboard(e);
+                return;
+            }
+
+            const allCards = Array.from(document.querySelectorAll('.content-card:not([style*="display: none"])'));
+            if (allCards.length === 0) return;
+
+            const currentIndex = allCards.indexOf(appState.focusedElement);
+            let newIndex = currentIndex;
+
+            // Calculate grid columns dynamically
+            const gridContainer = allCards[0]?.parentElement;
+            if (!gridContainer) return;
+
+            const containerWidth = gridContainer.offsetWidth;
+            const cardWidth = 200; // Approximate card width including gap
+            const cols = Math.floor(containerWidth / cardWidth);
+
+            switch (e.key) {
+                case 'ArrowLeft':
+                    newIndex = Math.max(0, currentIndex - 1);
+                    break;
+                case 'ArrowRight':
+                    newIndex = Math.min(allCards.length - 1, currentIndex + 1);
+                    break;
+                case 'ArrowUp':
+                    newIndex = Math.max(0, currentIndex - cols);
+                    break;
+                case 'ArrowDown':
+                    newIndex = Math.min(allCards.length - 1, currentIndex + cols);
+                    break;
+                case 'Enter':
+                case ' ':
+                    if (appState.focusedElement) {
+                        e.preventDefault();
+                        appState.focusedElement.click();
+                    }
+                    return;
+                case 'Escape':
+                    elements.searchInput.focus();
+                    return;
+            }
+
+            if (newIndex !== currentIndex && allCards[newIndex]) {
+                setFocusedElement(allCards[newIndex]);
+                appState.focusIndex = newIndex;
+                e.preventDefault();
+            }
+        }
+
+        function handleModalKeyboard(e) {
+            const streamItems = Array.from(elements.streamsList.querySelectorAll('.stream-item'));
+            if (streamItems.length === 0) return;
+
+            const currentIndex = streamItems.indexOf(document.activeElement);
+            let newIndex = currentIndex;
+
+            switch (e.key) {
+                case 'ArrowUp':
+                    newIndex = Math.max(0, currentIndex - 1);
+                    break;
+                case 'ArrowDown':
+                    newIndex = Math.min(streamItems.length - 1, currentIndex + 1);
+                    break;
+                case 'Enter':
+                case ' ':
+                    if (document.activeElement && document.activeElement.classList.contains('stream-item')) {
+                        e.preventDefault();
+                        document.activeElement.click();
+                    }
+                    return;
+                case 'Escape':
+                    closeStreamModal();
+                    return;
+            }
+
+            if (newIndex !== currentIndex && streamItems[newIndex]) {
+                streamItems[newIndex].focus();
+                e.preventDefault();
+            }
+        }
+
+        // Search Input Handling
+        let searchTimeout;
+        elements.searchInput.addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            const query = e.target.value.trim();
+            
+            if (!query) {
+                elements.searchResults.classList.remove('visible');
+                return;
+            }
+
+            searchTimeout = setTimeout(() => {
+                performSearch(query);
+            }, 300); // Debounce search
+        });
+
+        elements.searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                elements.searchInput.value = '';
+                elements.searchResults.classList.remove('visible');
+                elements.searchInput.blur();
+            } else if (e.key === 'ArrowDown') {
+                // Focus first search result
+                const firstResult = elements.searchGrid.querySelector('.content-card');
+                if (firstResult) {
+                    setFocusedElement(firstResult);
+                    e.preventDefault();
+                }
+            }
+        });
+
+        // Global Event Listeners
+        document.addEventListener('keydown', handleKeyboard);
+
+        // Modal close on background click
+        elements.streamModal.addEventListener('click', (e) => {
+            if (e.target === elements.streamModal) {
+                closeStreamModal();
+            }
+        });
+
+        // Initialize Application
+        async function initializeApp() {
+            try {
+                updateStatus('Initializing DeckFlix...');
+                
+                // Load continue watching first (synchronous)
+                loadContinueWatching();
+                
+                // Load all content sections
+                await Promise.all([
+                    loadMovies(),
+                    loadSeries(),
+                    loadAnime()
+                ]);
+
+                updateStatus('Ready');
+                
+                // Focus first movie card
+                setTimeout(() => {
+                    const firstCard = elements.moviesGrid.querySelector('.content-card');
+                    if (firstCard) {
+                        setFocusedElement(firstCard);
+                    }
+                }, 100);
+
+            } catch (error) {
+                console.error('Failed to initialize app:', error);
+                showError('Failed to initialize application: ' + error);
+            }
+        }
+
+        // Start the application
+        window.addEventListener('DOMContentLoaded', initializeApp);
+
+        // Make functions available globally for controller integration
+        window.DeckFlixApp = {
+            appState,
+            elements,
+            selectContent,
+            closeStreamModal,
+            setFocusedElement,
+            playStream
+        };
+    </script>
+</body>
+</html>

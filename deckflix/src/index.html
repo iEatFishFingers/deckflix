@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="styles.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DeckFlix</title>
+    <script type="module" src="/app.js" defer></script>
+    <script type="module" src="/controller.js" defer></script>
+  </head>
+
+  <body>
+    <!-- Header -->
+    <header class="header">
+      <div class="header-content">
+        <h1 class="app-title">🎬 DeckFlix</h1>
+        <div class="search-container">
+          <input type="text" id="search-input" class="search-input" placeholder="Search movies, series, anime..." />
+          <button id="search-clear" class="search-clear hidden">✕</button>
+        </div>
+        <div class="header-info">
+          <span id="addon-status" class="status-indicator">Loading...</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Global Loading Screen -->
+      <div id="global-loading" class="global-loading">
+        <div class="loading-spinner"></div>
+        <p>Loading DeckFlix...</p>
+      </div>
+
+      <!-- Search Results Section -->
+      <section id="search-section" class="content-section hidden">
+        <div class="section-header">
+          <h2 class="section-title">Search Results</h2>
+          <span id="search-results-count" class="section-subtitle"></span>
+        </div>
+        <div id="search-loading" class="section-loading hidden">
+          <div class="loading-spinner"></div>
+          <p>Searching...</p>
+        </div>
+        <div id="search-grid" class="content-grid">
+          <!-- Search results will be populated here -->
+        </div>
+        <div id="search-error" class="section-error hidden">
+          <p>No results found. Try a different search term.</p>
+        </div>
+      </section>
+
+      <!-- Continue Watching Section -->
+      <section id="continue-watching-section" class="content-section hidden">
+        <div class="section-header">
+          <h2 class="section-title">Continue Watching</h2>
+          <span class="section-subtitle">Pick up where you left off</span>
+        </div>
+        <div id="continue-watching-grid" class="content-grid continue-watching-grid">
+          <!-- Continue watching items will be populated here -->
+        </div>
+      </section>
+
+      <!-- Movies Section -->
+      <section id="movies-section" class="content-section">
+        <div class="section-header">
+          <h2 class="section-title">Popular Movies</h2>
+          <span class="section-subtitle">Trending now</span>
+        </div>
+        <div id="movies-loading" class="section-loading">
+          <div class="loading-spinner"></div>
+          <p>Loading movies...</p>
+        </div>
+        <div id="movies-grid" class="content-grid hidden">
+          <!-- Movies will be populated here -->
+        </div>
+        <div id="movies-error" class="section-error hidden">
+          <p>Unable to load movies. Check your connection.</p>
+          <button class="retry-btn" data-section="movies">Retry</button>
+        </div>
+      </section>
+
+      <!-- Series Section -->
+      <section id="series-section" class="content-section">
+        <div class="section-header">
+          <h2 class="section-title">Popular Series</h2>
+          <span class="section-subtitle">Binge-worthy shows</span>
+        </div>
+        <div id="series-loading" class="section-loading">
+          <div class="loading-spinner"></div>
+          <p>Loading series...</p>
+        </div>
+        <div id="series-grid" class="content-grid hidden">
+          <!-- Series will be populated here -->
+        </div>
+        <div id="series-error" class="section-error hidden">
+          <p>Unable to load series. Check your connection.</p>
+          <button class="retry-btn" data-section="series">Retry</button>
+        </div>
+      </section>
+
+      <!-- Anime Section -->
+      <section id="anime-section" class="content-section">
+        <div class="section-header">
+          <h2 class="section-title">Popular Anime</h2>
+          <span class="section-subtitle">Latest episodes</span>
+        </div>
+        <div id="anime-loading" class="section-loading">
+          <div class="loading-spinner"></div>
+          <p>Loading anime...</p>
+        </div>
+        <div id="anime-grid" class="content-grid hidden">
+          <!-- Anime will be populated here -->
+        </div>
+        <div id="anime-error" class="section-error hidden">
+          <p>Unable to load anime. Check your connection.</p>
+          <button class="retry-btn" data-section="anime">Retry</button>
+        </div>
+      </section>
+
+      <!-- Global Error Screen -->
+      <div id="global-error" class="global-error hidden">
+        <div class="error-content">
+          <h2>⚠️ Connection Error</h2>
+          <p>Unable to connect to streaming services. Please check your internet connection.</p>
+          <button id="global-retry" class="btn btn-primary">Retry</button>
+        </div>
+      </div>
+    </main>
+
+    <!-- Stream Selection Modal -->
+    <div id="stream-modal" class="modal hidden">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 id="modal-movie-title">Select Stream</h2>
+          <button id="close-modal" class="close-btn">✕</button>
+        </div>
+        <div class="modal-body">
+          <div id="streams-loading" class="loading-spinner"></div>
+          <div id="streams-list" class="streams-list hidden">
+            <!-- Stream options will be populated here -->
+          </div>
+          <div id="streams-error" class="error-content hidden">
+            <p>No streams available for this movie.</p>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <div class="controls-hint">
+            <span>A: Select • B: Back • ↑↓: Navigate</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Controller Hints -->
+    <div class="controls-overlay">
+      <div class="control-hint">
+        <span class="control-key">A</span>
+        <span class="control-action">Select</span>
+      </div>
+      <div class="control-hint">
+        <span class="control-key">B</span>
+        <span class="control-action">Back</span>
+      </div>
+      <div class="control-hint">
+        <span class="control-key">↑↓←→</span>
+        <span class="control-action">Navigate</span>
+      </div>
+    </div>
+  </body>
+</html>
