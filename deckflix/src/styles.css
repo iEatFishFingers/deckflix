@@ -274,12 +274,14 @@ body {
   background: var(--bg-secondary);
 }
 
-/* Content grids */
+/* Content grids - Netflix-style optimized for Steam Deck */
 .content-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 20px;
-  padding: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 25px;
+  padding: 15px;
+  max-width: 1240px; /* Steam Deck optimized */
+  margin: 0 auto;
 }
 
 /* Continue watching specific grid */
@@ -288,17 +290,18 @@ body {
   gap: 15px;
 }
 
-/* Content cards (movies, series, anime) */
+/* Content cards (movies, series, anime) - Netflix-style */
 .content-card,
 .movie-card {
   background: var(--bg-secondary);
-  border-radius: 12px;
+  border-radius: 16px;
   overflow: hidden;
-  transition: all 0.3s ease;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
   cursor: pointer;
   aspect-ratio: 2/3;
   position: relative;
   border: 2px solid transparent;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 /* Continue watching cards have different aspect ratio */
@@ -316,8 +319,21 @@ body {
 .content-card:hover,
 .movie-card:hover,
 .continue-watching-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
+  border-color: var(--accent);
+}
+
+/* Enhanced focus states for Steam Deck controller */
+.content-card:focus,
+.movie-card:focus,
+.content-card.focused,
+.movie-card.focused {
+  transform: translateY(-8px) scale(1.05);
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4), var(--focus-shadow);
+  border-color: var(--focus-color);
+  outline: none;
+  z-index: 10;
 }
 
 .content-poster,
@@ -361,10 +377,62 @@ body {
 }
 
 .content-poster img,
-.movie-poster img {
+.movie-poster img,
+.poster-image {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: opacity 0.3s ease;
+}
+
+/* Image loading states */
+.image-loading {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+.loading-spinner-small {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--bg-secondary);
+  border-top: 2px solid var(--accent);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 8px;
+}
+
+.loading-text {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.no-image-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
+  color: var(--text-secondary);
+}
+
+.content-icon {
+  font-size: 32px;
+  margin-bottom: 8px;
+  opacity: 0.7;
+}
+
+.no-image-text {
+  font-size: 12px;
+  opacity: 0.6;
+  text-align: center;
 }
 
 .content-info,
@@ -404,6 +472,76 @@ body {
   border-radius: 4px;
   text-transform: uppercase;
   margin-bottom: 4px;
+}
+
+/* Anime-specific content type styling */
+.content-type-anime {
+  background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+  color: var(--bg-primary);
+  font-weight: 700;
+  animation: animeGlow 2s ease-in-out infinite alternate;
+}
+
+@keyframes animeGlow {
+  0% { box-shadow: 0 0 5px rgba(255, 107, 107, 0.5); }
+  100% { box-shadow: 0 0 15px rgba(78, 205, 196, 0.8); }
+}
+
+/* Search result specific styles */
+.search-result-card {
+  position: relative;
+}
+
+.search-result-card::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  background: linear-gradient(45deg, transparent, var(--accent), transparent);
+  border-radius: 18px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: -1;
+}
+
+.search-result-card:hover::before,
+.search-result-card.focused::before {
+  opacity: 0.3;
+}
+
+/* Enhanced search results count */
+.search-results-count {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 15px;
+  padding: 8px 15px;
+  background: var(--bg-tertiary);
+  border-radius: 20px;
+  display: inline-block;
+}
+
+/* Fallback card styling */
+.fallback-card {
+  border: 2px dashed var(--bg-tertiary);
+  opacity: 0.8;
+}
+
+.fallback-card:hover,
+.fallback-card.focused {
+  border-color: var(--accent);
+  opacity: 1;
+}
+
+.fallback-card .content-title {
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.fallback-card .content-icon {
+  font-size: 24px;
+  opacity: 0.6;
 }
 
 .content-details,
@@ -656,28 +794,35 @@ body {
   box-shadow: var(--focus-shadow);
 }
 
-/* Responsive adjustments for Steam Deck */
+/* Steam Deck specific optimizations (1280x800) */
 @media (max-width: 1280px) {
+  :root {
+    font-size: 16px; /* Slightly smaller for better fit */
+  }
+
   .content-grid {
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    gap: 15px;
+    grid-template-columns: repeat(5, 1fr); /* Exactly 5 columns for Steam Deck */
+    gap: 18px;
+    padding: 12px;
+    max-width: 1240px;
   }
 
   .continue-watching-grid {
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    grid-template-columns: repeat(4, 1fr); /* 4 columns for continue watching */
+    gap: 15px;
   }
 
   .search-container {
-    max-width: 300px;
+    max-width: 350px;
     margin: 0 15px;
   }
 
   .app-title {
-    font-size: 24px;
+    font-size: 26px;
   }
 
   .section-title {
-    font-size: 20px;
+    font-size: 22px;
   }
 
   .control-hint {
@@ -686,5 +831,161 @@ body {
 
   .header-content {
     gap: 15px;
+  }
+
+  .main-content {
+    padding: 15px 15px 70px 15px;
+  }
+
+  /* Adjust card sizes for optimal Steam Deck viewing */
+  .content-card,
+  .movie-card {
+    aspect-ratio: 2/3;
+    min-height: 280px;
+  }
+
+  .content-title,
+  .movie-title {
+    font-size: 13px;
+    line-height: 1.2;
+  }
+
+  .content-details,
+  .movie-details {
+    font-size: 11px;
+  }
+}
+
+/* Ultra-wide Steam Deck landscape optimization */
+@media (min-width: 1280px) and (max-height: 800px) {
+  .content-grid {
+    grid-template-columns: repeat(6, 1fr); /* 6 columns in landscape */
+    gap: 20px;
+  }
+
+  .header {
+    padding: 12px 20px;
+  }
+
+  .main-content {
+    padding: 12px 20px 60px 20px;
+  }
+}
+
+/* Debug Panel Styles */
+.debug-panel {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  width: 400px;
+  max-height: 80vh;
+  background: var(--bg-secondary);
+  border: 2px solid var(--accent);
+  border-radius: 8px;
+  z-index: 10000;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.debug-header {
+  background: var(--accent);
+  color: var(--bg-primary);
+  padding: 8px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-radius: 6px 6px 0 0;
+}
+
+.debug-header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.debug-toggle,
+.debug-clear {
+  background: var(--bg-primary);
+  color: var(--accent);
+  border: none;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  margin-left: 5px;
+}
+
+.debug-toggle:hover,
+.debug-clear:hover {
+  background: var(--bg-tertiary);
+}
+
+.debug-content {
+  max-height: 70vh;
+  overflow-y: auto;
+  padding: 10px;
+}
+
+.debug-section {
+  margin-bottom: 15px;
+  border: 1px solid var(--bg-tertiary);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.debug-section h4 {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  margin: 0;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.debug-section > div {
+  padding: 8px 10px;
+  background: var(--bg-primary);
+}
+
+#debug-state div,
+#debug-api div {
+  color: var(--text-secondary);
+  margin-bottom: 3px;
+  font-size: 11px;
+}
+
+#debug-logs {
+  max-height: 200px;
+  overflow-y: auto;
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+.debug-log {
+  padding: 2px 0;
+  border-bottom: 1px solid var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+.debug-log.debug-error {
+  color: var(--error);
+  font-weight: 600;
+}
+
+/* Responsive debug panel */
+@media (max-width: 1280px) {
+  .debug-panel {
+    width: 350px;
+    top: 5px;
+    right: 5px;
+  }
+
+  .debug-content {
+    max-height: 60vh;
+  }
+
+  #debug-logs {
+    max-height: 150px;
   }
 }

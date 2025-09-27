@@ -15,47 +15,92 @@ impl AddonClient {
             .build()
             .expect("Failed to create HTTP client");
 
-        // Popular Stremio addons - these are public addon URLs
+        // Use Cinemeta v3 API as the primary source
         let base_urls = vec![
+            "https://v3-cinemeta.strem.io".to_string(),
             "https://torrentio.strem.fun".to_string(),
-            "https://cinemeta-live.herokuapp.com".to_string(),
         ];
 
         Self { client, base_urls }
     }
 
     pub async fn fetch_popular_movies(&self) -> Result<Vec<Movie>, String> {
+        println!("[RUST] [MOVIES_FETCH] Starting to fetch popular movies using correct Stremio v3 structure...");
         let mut all_movies = Vec::new();
+        let mut last_error = String::new();
 
-        for base_url in &self.base_urls {
-            match self.fetch_movies_from_addon(base_url, "popular").await {
+        println!("[RUST] [MOVIES_FETCH] Available addon URLs: {:?}", self.base_urls);
+        println!("[RUST] [MOVIES_FETCH] Correct endpoint: https://v3-cinemeta.strem.io/catalog/movie/top.json");
+
+        // Try Cinemeta first (prioritized)
+        for (index, base_url) in self.base_urls.iter().enumerate() {
+            println!("[RUST] [MOVIES_FETCH] Attempting to fetch from addon {} ({})", index + 1, base_url);
+
+            let start_time = std::time::Instant::now();
+            match self.fetch_movies_from_addon(base_url, "top").await {
                 Ok(mut movies) => {
+                    let duration = start_time.elapsed();
+                    println!("[RUST] [MOVIES_FETCH] Successfully fetched {} movies from {} in {:?}",
+                            movies.len(), base_url, duration);
+
+                    // Log sample movie data for debugging
+                    if !movies.is_empty() {
+                        println!("[RUST] [MOVIES_FETCH] Sample movies:");
+                        for (i, movie) in movies.iter().take(3).enumerate() {
+                            println!("[RUST] [MOVIES_FETCH]   {}. {} (ID: {})", i + 1, movie.name, movie.id);
+                        }
+                    }
+
                     all_movies.append(&mut movies);
+
+                    // If we get movies from Cinemeta (first URL), that's sufficient
+                    if index == 0 && !all_movies.is_empty() {
+                        println!("[RUST] [MOVIES_FETCH] Got movies from primary source (Cinemeta), stopping here");
+                        break;
+                    }
                 }
                 Err(e) => {
-                    eprintln!("Failed to fetch from {}: {}", base_url, e);
+                    let duration = start_time.elapsed();
+                    last_error = format!("Failed to fetch from {}: {}", base_url, e);
+                    println!("[RUST] [MOVIES_FETCH] ERROR: {} (after {:?})", last_error, duration);
                     continue;
                 }
             }
         }
 
         if all_movies.is_empty() {
-            return Err("No movies found from any addon".to_string());
+            let error_msg = format!("No movies found from any addon. Last error: {}", last_error);
+            println!("[RUST] [MOVIES_FETCH] CRITICAL ERROR: {}", error_msg);
+            return Err(error_msg);
         }
 
-        // Remove duplicates and limit results
+        println!("[RUST] [MOVIES_FETCH] Processing {} total movies...", all_movies.len());
+
+        // Remove duplicates and limit results for better performance
+        let original_count = all_movies.len();
         all_movies.sort_by(|a, b| a.id.cmp(&b.id));
         all_movies.dedup_by(|a, b| a.id == b.id);
-        all_movies.truncate(100);
+
+        let after_dedup = all_movies.len();
+        all_movies.truncate(50); // Limit to 50 for Steam Deck performance
+        let final_count = all_movies.len();
+
+        println!("[RUST] [MOVIES_FETCH] Movie processing complete:");
+        println!("[RUST] [MOVIES_FETCH]   Original count: {}", original_count);
+        println!("[RUST] [MOVIES_FETCH]   After deduplication: {}", after_dedup);
+        println!("[RUST] [MOVIES_FETCH]   Final count (after truncation): {}", final_count);
 
         Ok(all_movies)
     }
 
     pub async fn fetch_popular_series(&self) -> Result<Vec<Series>, String> {
+        println!("[RUST] [SERIES_FETCH] Starting to fetch popular series using correct Stremio v3 structure...");
         let mut all_series = Vec::new();
 
+        println!("[RUST] [SERIES_FETCH] Correct endpoint: https://v3-cinemeta.strem.io/catalog/series/top.json");
+
         for base_url in &self.base_urls {
-            match self.fetch_series_from_addon(base_url, "popular").await {
+            match self.fetch_series_from_addon(base_url, "top").await {
                 Ok(mut series) => {
                     all_series.append(&mut series);
                 }
@@ -79,10 +124,13 @@ impl AddonClient {
     }
 
     pub async fn fetch_popular_anime(&self) -> Result<Vec<Anime>, String> {
+        println!("[RUST] [ANIME_FETCH] Starting to fetch anime using series endpoint with filtering...");
         let mut all_anime = Vec::new();
 
+        println!("[RUST] [ANIME_FETCH] Using series/top endpoint and filtering for anime content");
+
         for base_url in &self.base_urls {
-            match self.fetch_anime_from_addon(base_url, "popular").await {
+            match self.fetch_anime_from_addon(base_url, "top").await {
                 Ok(mut anime) => {
                     all_anime.append(&mut anime);
                 }
@@ -106,42 +154,82 @@ impl AddonClient {
     }
 
     pub async fn search_content(&self, query: &str) -> Result<Vec<SearchResult>, String> {
+        println!("[RUST] [SEARCH] Starting comprehensive search for query: '{}'", query);
+
         if query.len() < 2 {
+            println!("[RUST] [SEARCH] Query too short, returning empty results");
             return Ok(Vec::new());
         }
 
         let mut all_results = Vec::new();
 
+        // Search movies, series, and anime from all addons
         for base_url in &self.base_urls {
-            match self.search_from_addon(base_url, query).await {
-                Ok(mut results) => {
-                    all_results.append(&mut results);
+            println!("[RUST] [SEARCH] Searching in addon: {}", base_url);
+
+            // Search movies
+            match self.search_movies_from_addon(base_url, query).await {
+                Ok(mut movie_results) => {
+                    println!("[RUST] [SEARCH] Found {} movie results from {}", movie_results.len(), base_url);
+                    all_results.append(&mut movie_results);
                 }
                 Err(e) => {
-                    eprintln!("Failed to search from {}: {}", base_url, e);
-                    continue;
+                    println!("[RUST] [SEARCH] Failed to search movies from {}: {}", base_url, e);
+                }
+            }
+
+            // Search series
+            match self.search_series_from_addon(base_url, query).await {
+                Ok(mut series_results) => {
+                    println!("[RUST] [SEARCH] Found {} series results from {}", series_results.len(), base_url);
+                    all_results.append(&mut series_results);
+                }
+                Err(e) => {
+                    println!("[RUST] [SEARCH] Failed to search series from {}: {}", base_url, e);
                 }
             }
         }
 
+        // Apply anime detection logic
+        for result in &mut all_results {
+            if self.is_anime_content(result) {
+                result.content_type = "anime".to_string();
+                println!("[RUST] [SEARCH] Detected anime content: {}", result.name);
+            }
+        }
+
         // Remove duplicates and limit results
+        let original_count = all_results.len();
         all_results.sort_by(|a, b| a.id.cmp(&b.id));
         all_results.dedup_by(|a, b| a.id == b.id);
-        all_results.truncate(50);
+        all_results.truncate(100); // Increased limit for search results
+
+        println!("[RUST] [SEARCH] Search complete: {} results after deduplication (from {} original)",
+                all_results.len(), original_count);
 
         Ok(all_results)
     }
 
     pub async fn fetch_streams(&self, imdb_id: &str) -> Result<Vec<Stream>, String> {
+        println!("[RUST] [STREAMS_FETCH] Starting to fetch streams for IMDB ID: {}", imdb_id);
         let mut all_streams = Vec::new();
 
         for base_url in &self.base_urls {
+            let stream_url = if base_url.contains("v3-cinemeta.strem.io") {
+                format!("{}/stream/movie/{}.json", base_url, imdb_id)
+            } else {
+                format!("{}/stream/movie/{}.json", base_url, imdb_id)
+            };
+
+            println!("[RUST] [STREAMS_FETCH] Trying stream endpoint: {}", stream_url);
+
             match self.fetch_streams_from_addon(base_url, imdb_id).await {
                 Ok(mut streams) => {
+                    println!("[RUST] [STREAMS_FETCH] Found {} streams from {}", streams.len(), base_url);
                     all_streams.append(&mut streams);
                 }
                 Err(e) => {
-                    eprintln!("Failed to fetch streams from {}: {}", base_url, e);
+                    println!("[RUST] [STREAMS_FETCH] Failed to fetch streams from {}: {}", base_url, e);
                     continue;
                 }
             }
@@ -163,24 +251,59 @@ impl AddonClient {
         catalog: &str,
     ) -> Result<Vec<Movie>, String> {
         let url = format!("{}/catalog/movie/{}.json", base_url, catalog);
-        
+        println!("[RUST] [HTTP] Making request to correct Stremio endpoint: {}", url);
+
+        let start_time = std::time::Instant::now();
         let response = self
             .client
             .get(&url)
             .send()
             .await
-            .map_err(|e| format!("Network error: {}", e))?;
+            .map_err(|e| {
+                let error_msg = format!("Network error: {}", e);
+                println!("[RUST] [HTTP] ERROR: {}", error_msg);
+                error_msg
+            })?;
+
+        let request_duration = start_time.elapsed();
+        println!("[RUST] [HTTP] Request completed in {:?}, status: {}", request_duration, response.status());
 
         if !response.status().is_success() {
-            return Err(format!("HTTP error: {}", response.status()));
+            let error_msg = format!("HTTP error: {}", response.status());
+            println!("[RUST] [HTTP] ERROR: {}", error_msg);
+            return Err(error_msg);
         }
 
+        println!("[RUST] [HTTP] Parsing JSON response...");
+        let json_start = std::time::Instant::now();
         let json: Value = response
             .json()
             .await
-            .map_err(|e| format!("JSON parse error: {}", e))?;
+            .map_err(|e| {
+                let error_msg = format!("JSON parse error: {}", e);
+                println!("[RUST] [HTTP] ERROR: {}", error_msg);
+                error_msg
+            })?;
 
+        let json_duration = json_start.elapsed();
+        println!("[RUST] [HTTP] JSON parsing completed in {:?}", json_duration);
+
+        // Log some details about the JSON structure
+        if let Some(metas) = json.get("metas") {
+            if let Some(metas_array) = metas.as_array() {
+                println!("[RUST] [PARSE] Found {} metas in response", metas_array.len());
+            }
+        } else {
+            println!("[RUST] [PARSE] WARNING: No 'metas' field found in response");
+            println!("[RUST] [PARSE] Available fields: {:?}", json.as_object().map(|o| o.keys().collect::<Vec<_>>()));
+        }
+
+        println!("[RUST] [PARSE] Parsing movies from JSON...");
+        let parse_start = std::time::Instant::now();
         let movies = self.parse_movies_from_json(json)?;
+        let parse_duration = parse_start.elapsed();
+
+        println!("[RUST] [PARSE] Parsed {} movies in {:?}", movies.len(), parse_duration);
         Ok(movies)
     }
 
@@ -283,13 +406,16 @@ impl AddonClient {
         Ok(anime)
     }
 
-    async fn search_from_addon(
+    // Search movies specifically
+    async fn search_movies_from_addon(
         &self,
         base_url: &str,
         query: &str,
     ) -> Result<Vec<SearchResult>, String> {
         let encoded_query = urlencoding::encode(query);
-        let url = format!("{}/catalog/movie/search={}.json", base_url, encoded_query);
+        let url = format!("{}/catalog/movie/top/search={}.json", base_url, encoded_query);
+
+        println!("[RUST] [SEARCH] Searching movies at correct endpoint: {}", url);
 
         let response = self
             .client
@@ -307,8 +433,99 @@ impl AddonClient {
             .await
             .map_err(|e| format!("JSON parse error: {}", e))?;
 
-        let results = self.parse_search_results_from_json(json)?;
+        let mut results = self.parse_search_results_from_json(json)?;
+
+        // Set content type for movies
+        for result in &mut results {
+            if result.content_type.is_empty() || result.content_type == "movie" {
+                result.content_type = "movie".to_string();
+            }
+        }
+
         Ok(results)
+    }
+
+    // Search series specifically
+    async fn search_series_from_addon(
+        &self,
+        base_url: &str,
+        query: &str,
+    ) -> Result<Vec<SearchResult>, String> {
+        let encoded_query = urlencoding::encode(query);
+        let url = format!("{}/catalog/series/top/search={}.json", base_url, encoded_query);
+
+        println!("[RUST] [SEARCH] Searching series at correct endpoint: {}", url);
+
+        let response = self
+            .client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| format!("Network error: {}", e))?;
+
+        if !response.status().is_success() {
+            return Err(format!("HTTP error: {}", response.status()));
+        }
+
+        let json: Value = response
+            .json()
+            .await
+            .map_err(|e| format!("JSON parse error: {}", e))?;
+
+        let mut results = self.parse_search_results_from_json(json)?;
+
+        // Set content type for series
+        for result in &mut results {
+            if result.content_type.is_empty() || result.content_type == "series" {
+                result.content_type = "series".to_string();
+            }
+        }
+
+        Ok(results)
+    }
+
+    // Anime detection logic
+    fn is_anime_content(&self, content: &SearchResult) -> bool {
+        let name_lower = content.name.to_lowercase();
+        let description_lower = content.description.as_ref().map(|d| d.to_lowercase()).unwrap_or_default();
+
+        // Check for anime-specific keywords
+        let anime_keywords = [
+            "anime", "manga", "japanese", "japan", "studio ghibli", "toei", "madhouse",
+            "pierrot", "bones", "wit studio", "mappa", "sunrise", "a-1 pictures",
+            "production i.g", "shaft", "gainax", "trigger", "kyoto animation"
+        ];
+
+        // Check for popular anime titles
+        let popular_anime = [
+            "one piece", "naruto", "bleach", "dragon ball", "pokemon", "detective conan",
+            "attack on titan", "demon slayer", "death note", "fullmetal alchemist",
+            "spirited away", "my neighbor totoro", "princess mononoke", "howl's moving castle",
+            "sword art online", "tokyo ghoul", "jujutsu kaisen", "my hero academia",
+            "hunter x hunter", "fairy tail", "black clover", "violet evergarden",
+            "cowboy bebop", "neon genesis evangelion", "akira", "ghost in the shell"
+        ];
+
+        // Check name and description for anime indicators
+        for keyword in &anime_keywords {
+            if name_lower.contains(keyword) || description_lower.contains(keyword) {
+                return true;
+            }
+        }
+
+        // Check for popular anime titles
+        for anime_title in &popular_anime {
+            if name_lower.contains(anime_title) {
+                return true;
+            }
+        }
+
+        // Check if it's from Japan (common anime indicator)
+        if description_lower.contains("japan") && (name_lower.contains("animation") || description_lower.contains("animated")) {
+            return true;
+        }
+
+        false
     }
 
     fn parse_series_from_json(&self, json: Value) -> Result<Vec<Series>, String> {
