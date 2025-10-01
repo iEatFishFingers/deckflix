@@ -152,6 +152,35 @@
       </div>
     </div>
 
+    <!-- Built-in Video Player Modal -->
+    <div id="video-player-modal" class="video-modal hidden">
+      <div class="video-player-container">
+        <div class="video-header">
+          <h3 id="video-title">Now Playing</h3>
+          <button id="close-video" class="close-video-btn">✕</button>
+        </div>
+        <div class="video-wrapper">
+          <video id="video-player" class="video-element" controls preload="metadata">
+            <p>Your browser doesn't support HTML5 video.</p>
+          </video>
+          <div id="video-loading" class="video-loading hidden">
+            <div class="loading-spinner"></div>
+            <p>Loading video...</p>
+          </div>
+          <div id="video-error" class="video-error hidden">
+            <div class="error-content">
+              <h3>⚠️ Playback Error</h3>
+              <p id="video-error-message">Unable to play this video.</p>
+              <button id="retry-video" class="btn btn-primary">Try External Player</button>
+            </div>
+          </div>
+        </div>
+        <div class="video-controls-hint">
+          <span>Space: Play/Pause • F: Fullscreen • Esc: Close • ←→: Seek • ↑↓: Volume</span>
+        </div>
+      </div>
+    </div>
+
     <!-- Controller Hints -->
     <div class="controls-overlay">
       <div class="control-hint">

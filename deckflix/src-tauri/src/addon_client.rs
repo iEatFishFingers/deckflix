@@ -1,4 +1,4 @@
-use crate::models::{Movie, Series, Anime, Stream, StremioResponse, SearchResult, SearchResponse};
+use crate::models::{Movie, Series, Anime, Stream, SearchResult};
 use reqwest::Client;
 use serde_json::Value;
 use std::time::Duration;
@@ -15,22 +15,26 @@ impl AddonClient {
             .build()
             .expect("Failed to create HTTP client");
 
-        // Use Cinemeta v3 API as the primary source
+        // Use real streaming addon sources with metadata and torrent streams
         let base_urls = vec![
-            "https://v3-cinemeta.strem.io".to_string(),
-            "https://torrentio.strem.fun".to_string(),
+            "https://v3-cinemeta.strem.io".to_string(),                    // Primary metadata source
+            "https://torrentio.strem.fun".to_string(),                     // Main torrent source
+            "https://thepiratebay-plus.strem.fun".to_string(),             // PirateBay torrents
+            "https://torrentio.strem.fun/lite".to_string(),                // Lite torrent source
+            "https://prowlarr.elfhosted.com/c/stremio".to_string(),        // Multi-indexer source
         ];
 
         Self { client, base_urls }
     }
 
     pub async fn fetch_popular_movies(&self) -> Result<Vec<Movie>, String> {
-        println!("[RUST] [MOVIES_FETCH] Starting to fetch popular movies using correct Stremio v3 structure...");
+        println!("[RUST] [MOVIES_FETCH] Starting to fetch popular movies from real streaming sources...");
         let mut all_movies = Vec::new();
         let mut last_error = String::new();
 
-        println!("[RUST] [MOVIES_FETCH] Available addon URLs: {:?}", self.base_urls);
-        println!("[RUST] [MOVIES_FETCH] Correct endpoint: https://v3-cinemeta.strem.io/catalog/movie/top.json");
+        println!("[RUST] [MOVIES_FETCH] Available streaming addon URLs: {:?}", self.base_urls);
+        println!("[RUST] [MOVIES_FETCH] Primary metadata source: https://v3-cinemeta.strem.io/catalog/movie/top.json");
+        println!("[RUST] [MOVIES_FETCH] Additional torrent sources: torrentio, thepiratebay-plus, prowlarr");
 
         // Try Cinemeta first (prioritized)
         for (index, base_url) in self.base_urls.iter().enumerate() {
@@ -211,37 +215,113 @@ impl AddonClient {
     }
 
     pub async fn fetch_streams(&self, imdb_id: &str) -> Result<Vec<Stream>, String> {
-        println!("[RUST] [STREAMS_FETCH] Starting to fetch streams for IMDB ID: {}", imdb_id);
+        println!("[RUST] [STREAMS_FETCH] Starting to fetch streams for IMDB ID: {} from {} sources", imdb_id, self.base_urls.len());
         let mut all_streams = Vec::new();
+        let mut successful_sources = 0;
+        let mut failed_sources = Vec::new();
 
         for base_url in &self.base_urls {
-            let stream_url = if base_url.contains("v3-cinemeta.strem.io") {
-                format!("{}/stream/movie/{}.json", base_url, imdb_id)
-            } else {
-                format!("{}/stream/movie/{}.json", base_url, imdb_id)
-            };
+            // Skip metadata-only sources for stream fetching
+            if base_url.contains("v3-cinemeta.strem.io") {
+                println!("[RUST] [STREAMS_FETCH] Skipping metadata-only source: {}", base_url);
+                continue;
+            }
 
-            println!("[RUST] [STREAMS_FETCH] Trying stream endpoint: {}", stream_url);
+            let stream_url = format!("{}/stream/movie/{}.json", base_url, imdb_id);
+            println!("[RUST] [STREAMS_FETCH] Trying torrent source: {}", stream_url);
 
             match self.fetch_streams_from_addon(base_url, imdb_id).await {
                 Ok(mut streams) => {
-                    println!("[RUST] [STREAMS_FETCH] Found {} streams from {}", streams.len(), base_url);
-                    all_streams.append(&mut streams);
+                    println!("[RUST] [STREAMS_FETCH] Found {} streams from torrent source {}", streams.len(), base_url);
+                    if !streams.is_empty() {
+                        successful_sources += 1;
+                        all_streams.append(&mut streams);
+                    }
                 }
                 Err(e) => {
                     println!("[RUST] [STREAMS_FETCH] Failed to fetch streams from {}: {}", base_url, e);
+                    failed_sources.push(base_url.clone());
                     continue;
                 }
             }
         }
 
+        println!("[RUST] [STREAMS_FETCH] Stream fetching summary: {} successful sources, {} failed sources",
+                successful_sources, failed_sources.len());
+
         if all_streams.is_empty() {
-            return Err("No streams found for this content".to_string());
+            let error_msg = if failed_sources.len() == self.base_urls.len() - 1 { // -1 for cinemeta
+                format!("No streaming sources available. All torrent addons failed: {:?}", failed_sources)
+            } else {
+                "No streams found for this content from any torrent source".to_string()
+            };
+            return Err(error_msg);
         }
 
-        // Sort streams by quality score
-        all_streams.sort_by(|a, b| self.calculate_stream_quality_score(b).partial_cmp(&self.calculate_stream_quality_score(a)).unwrap_or(std::cmp::Ordering::Equal));
+        // Add some direct video streams for testing the built-in player
+        let demo_streams = vec![
+            Stream {
+                name: None,
+                url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4".to_string(),
+                title: "🎬 Demo: Big Buck Bunny (1080p)".to_string(),
+                behavior_hints: None,
+                quality: Some("1080p".to_string()),
+                source: Some("Demo Direct Video".to_string()),
+                seeders: None,
+                leechers: None,
+                size: Some("158 MB".to_string()),
+                language: None,
+                subtitles: None,
+            },
+            Stream {
+                name: None,
+                url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4".to_string(),
+                title: "🎬 Demo: Elephants Dream (720p)".to_string(),
+                behavior_hints: None,
+                quality: Some("720p".to_string()),
+                source: Some("Demo Direct Video".to_string()),
+                seeders: None,
+                leechers: None,
+                size: Some("64 MB".to_string()),
+                language: None,
+                subtitles: None,
+            },
+            Stream {
+                name: None,
+                url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4".to_string(),
+                title: "🎬 Demo: For Bigger Blazes (720p)".to_string(),
+                behavior_hints: None,
+                quality: Some("720p".to_string()),
+                source: Some("Demo Direct Video".to_string()),
+                seeders: None,
+                leechers: None,
+                size: Some("28 MB".to_string()),
+                language: None,
+                subtitles: None,
+            },
+        ];
 
+        // Add demo streams at the beginning (highest priority)
+        for demo_stream in demo_streams {
+            all_streams.insert(0, demo_stream);
+        }
+
+        // Sort streams by quality score (best first) - but demo streams stay at top
+        let mut demo_count = 3; // Keep first 3 demo streams at top
+        if all_streams.len() > demo_count {
+            let (demo_streams, mut regular_streams): (Vec<_>, Vec<_>) = all_streams.into_iter().enumerate()
+                .partition(|(i, _)| *i < demo_count);
+
+            regular_streams.sort_by(|(_, a), (_, b)| {
+                self.calculate_stream_quality_score(b).partial_cmp(&self.calculate_stream_quality_score(a))
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+
+            all_streams = demo_streams.into_iter().map(|(_, stream)| stream).collect();
+            all_streams.extend(regular_streams.into_iter().map(|(_, stream)| stream));
+        }
+
+        println!("[RUST] [STREAMS_FETCH] Returning {} total streams (including {} demo direct video streams)", all_streams.len(), 3);
         Ok(all_streams)
     }
 
@@ -703,11 +783,21 @@ impl AddonClient {
     }
 
     fn parse_single_stream(&self, stream: &Value) -> Result<Stream, String> {
-        let url = stream
-            .get("url")
-            .and_then(|v| v.as_str())
-            .ok_or("Missing stream url")?
-            .to_string();
+        // Handle both direct URLs and torrent infoHash
+        let url = if let Some(direct_url) = stream.get("url").and_then(|v| v.as_str()) {
+            // Direct streaming URL
+            direct_url.to_string()
+        } else if let Some(info_hash) = stream.get("infoHash").and_then(|v| v.as_str()) {
+            // Torrent magnet link
+            let file_idx = stream.get("fileIdx").and_then(|v| v.as_u64()).unwrap_or(0);
+            if file_idx > 0 {
+                format!("magnet:?xt=urn:btih:{}&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&so={}", info_hash, file_idx - 1)
+            } else {
+                format!("magnet:?xt=urn:btih:{}&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce", info_hash)
+            }
+        } else {
+            return Err("Missing stream url or infoHash".to_string());
+        };
 
         let title = stream
             .get("title")
@@ -721,25 +811,37 @@ impl AddonClient {
             .map(|s| s.to_string());
 
         let quality = self.extract_quality_from_title(&title);
-        let size = stream
-            .get("size")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string());
 
-        let seeders = stream
-            .get("seeders")
-            .and_then(|v| v.as_u64())
-            .map(|n| n as u32);
+        // Extract size from torrent title or size field
+        let size = if let Some(size_field) = stream.get("size").and_then(|v| v.as_str()) {
+            Some(size_field.to_string())
+        } else {
+            // Try to extract size from title (e.g., "💾 5.09 GB")
+            self.extract_size_from_title(&title)
+        };
+
+        // Extract seeders from field or title (e.g., "👤 12")
+        let seeders = if let Some(seeders_field) = stream.get("seeders").and_then(|v| v.as_u64()) {
+            Some(seeders_field as u32)
+        } else {
+            self.extract_seeders_from_title(&title)
+        };
 
         let leechers = stream
             .get("leechers")
             .and_then(|v| v.as_u64())
             .map(|n| n as u32);
 
-        let source = stream
-            .get("source")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string());
+        // Set source based on whether it's a torrent or direct stream
+        let source = if stream.get("infoHash").is_some() {
+            Some("torrent".to_string())
+        } else {
+            stream
+                .get("source")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+                .or_else(|| Some("direct".to_string()))
+        };
 
         let language = stream
             .get("language")
@@ -1098,23 +1200,49 @@ impl AddonClient {
     }
 
     fn extract_quality_from_title(&self, title: &str) -> Option<String> {
+        let title_upper = title.to_uppercase();
+
+        // Enhanced quality patterns for torrent sources (ordered by preference)
         let quality_patterns = [
-            ("4K", 5),
-            ("2160p", 5),
-            ("1080p", 4),
-            ("720p", 3),
-            ("480p", 2),
-            ("HDRip", 3),
-            ("BluRay", 4),
-            ("WEBRip", 3),
+            // 4K variants
+            ("2160P", 6),
+            ("4K", 6),
+            ("UHD", 6),
+            // High quality 1080p variants
+            ("1080P BLURAY", 5),
+            ("1080P REMUX", 5),
+            ("1080P", 4),
+            // 720p variants
+            ("720P BLURAY", 4),
+            ("720P", 3),
+            // Other formats
+            ("BLURAY", 4),
+            ("WEBDL", 3),
+            ("WEBRIP", 3),
+            ("HDRIP", 3),
+            ("BRRIP", 3),
+            ("480P", 2),
+            ("DVDRIP", 2),
+            // Low quality
             ("CAM", 1),
             ("TS", 1),
+            ("HDTS", 1),
+            ("SCREENER", 1),
         ];
 
+        // Find the best matching quality indicator
         for (pattern, _score) in &quality_patterns {
-            if title.to_uppercase().contains(pattern) {
+            if title_upper.contains(pattern) {
                 return Some(pattern.to_string());
             }
+        }
+
+        // Check for resolution patterns like "x264", "x265", "H264", "H265"
+        if title_upper.contains("X265") || title_upper.contains("H265") || title_upper.contains("HEVC") {
+            return Some("H265".to_string());
+        }
+        if title_upper.contains("X264") || title_upper.contains("H264") {
+            return Some("H264".to_string());
         }
 
         None
@@ -1123,16 +1251,29 @@ impl AddonClient {
     fn calculate_stream_quality_score(&self, stream: &Stream) -> f64 {
         let mut score = 0.0;
 
-        // Quality score based on resolution
+        // Enhanced quality score based on torrent stream quality indicators
         if let Some(quality) = &stream.quality {
             score += match quality.as_str() {
-                "4K" | "2160p" => 50.0,
-                "1080p" => 40.0,
-                "720p" => 30.0,
-                "480p" => 20.0,
-                "HDRip" | "BluRay" | "WEBRip" => 25.0,
-                "CAM" | "TS" => 5.0,
-                _ => 15.0,
+                // 4K and UHD content
+                "4K" | "2160P" | "UHD" => 60.0,
+                // High quality 1080p
+                "1080P BLURAY" | "1080P REMUX" => 55.0,
+                "1080P" => 45.0,
+                // 720p variants
+                "720P BLURAY" => 40.0,
+                "720P" => 35.0,
+                // Good quality sources
+                "BLURAY" => 42.0,
+                "WEBDL" => 30.0,
+                "WEBRIP" | "HDRIP" | "BRRIP" => 25.0,
+                // Standard definition
+                "480P" | "DVDRIP" => 15.0,
+                // Encoding quality bonus
+                "H265" | "X265" | "HEVC" => 35.0,
+                "H264" | "X264" => 30.0,
+                // Low quality
+                "CAM" | "TS" | "HDTS" | "SCREENER" => 5.0,
+                _ => 20.0,
             };
         }
 
@@ -1180,4 +1321,33 @@ impl AddonClient {
             Ok(bytes / (1024.0 * 1024.0 * 1024.0))
         }
     }
+
+    fn extract_size_from_title(&self, title: &str) -> Option<String> {
+        use regex::Regex;
+
+        // Pattern to match size in torrent titles (e.g., "💾 5.09 GB", "1.78 GB", "15.27 GB")
+        if let Ok(re) = Regex::new(r"💾\s*([0-9.]+\s*[KMGT]?B)|([0-9.]+\s*[KMGT]?B)") {
+            if let Some(captures) = re.find(title) {
+                let size_text = captures.as_str().replace("💾", "").trim().to_string();
+                return Some(size_text);
+            }
+        }
+        None
     }
+
+    fn extract_seeders_from_title(&self, title: &str) -> Option<u32> {
+        use regex::Regex;
+
+        // Pattern to match seeders in torrent titles (e.g., "👤 12", "👤12")
+        if let Ok(re) = Regex::new(r"👤\s*([0-9]+)") {
+            if let Some(captures) = re.captures(title) {
+                if let Some(seeders_str) = captures.get(1) {
+                    if let Ok(seeders) = seeders_str.as_str().parse::<u32>() {
+                        return Some(seeders);
+                    }
+                }
+            }
+        }
+        None
+    }
+}

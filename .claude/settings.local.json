@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cargo check:*)",
+      "Bash(cargo test)",
+      "Bash(cargo:*)",
+      "Bash(npm run tauri:*)",
+      "Bash(where peerflix)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

@@ -148,7 +148,17 @@ async function initApp() {
       streamsLoading: document.getElementById('streams-loading'),
       streamsList: document.getElementById('streams-list'),
       streamsError: document.getElementById('streams-error'),
-      closeModal: document.getElementById('close-modal')
+      closeModal: document.getElementById('close-modal'),
+
+      // Video player elements
+      videoPlayerModal: document.getElementById('video-player-modal'),
+      videoPlayer: document.getElementById('video-player'),
+      videoTitle: document.getElementById('video-title'),
+      videoLoading: document.getElementById('video-loading'),
+      videoError: document.getElementById('video-error'),
+      videoErrorMessage: document.getElementById('video-error-message'),
+      closeVideo: document.getElementById('close-video'),
+      retryVideo: document.getElementById('retry-video')
     };
 
     // Validate DOM elements
@@ -221,6 +231,25 @@ function setupEventListeners() {
       closeStreamModal();
     }
   });
+
+  // Video player event listeners
+  elements.closeVideo.addEventListener('click', closeVideoPlayer);
+  elements.retryVideo.addEventListener('click', () => {
+    // Try external player as fallback
+    if (window.currentStreamUrl) {
+      tryExternalPlayer(window.currentStreamUrl);
+    }
+  });
+
+  // Click outside video modal to close
+  elements.videoPlayerModal.addEventListener('click', (e) => {
+    if (e.target === elements.videoPlayerModal) {
+      closeVideoPlayer();
+    }
+  });
+
+  // Video player keyboard controls
+  elements.videoPlayer.addEventListener('keydown', handleVideoKeyboard);
 
   // Keyboard navigation fallback
   document.addEventListener('keydown', handleKeyboard);
@@ -1718,7 +1747,8 @@ function setFocusedElement(element) {
 
 async function selectContent(content, contentType) {
   appState.currentContent = content;
-  console.log('Selected content:', content.name, 'Type:', contentType);
+  console.log('🎬 Selected content:', content.name, 'Type:', contentType);
+  console.log('🔍 Content object:', content);
 
   // Add to continue watching
   addToContinueWatching(content, contentType, 0);
@@ -1792,7 +1822,10 @@ function createStreamItem(stream, index) {
   item.appendChild(quality);
 
   // Add click listener
-  item.addEventListener('click', () => playStream(stream));
+  item.addEventListener('click', () => {
+    console.log('Stream item clicked:', stream.title);
+    playStream(stream);
+  });
 
   return item;
 }
@@ -1825,27 +1858,329 @@ function extractQuality(title) {
 
 async function playStream(stream) {
   try {
-    console.log('Playing stream:', stream.url);
+    console.log('🎯 Playing stream:', stream.title);
+    console.log('🔗 Stream URL:', stream.url);
+    console.log('🎬 Movie:', appState.currentContent?.name);
 
-    // Show loading state
-    const loadingMsg = document.createElement('div');
-    loadingMsg.textContent = 'Launching video player...';
-    loadingMsg.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: var(--bg-secondary); padding: 20px; border-radius: 8px; z-index: 2000;';
-    document.body.appendChild(loadingMsg);
+    // Store current stream URL for retry functionality
+    window.currentStreamUrl = stream.url;
 
-    const result = await safeInvoke('play_video_external', { streamUrl: stream.url });
+    // Check if it's a direct video URL that can be played in HTML5 video
+    if (stream.url && (stream.url.startsWith('http://') || stream.url.startsWith('https://')) &&
+        !stream.url.startsWith('magnet:') &&
+        (stream.url.includes('.mp4') || stream.url.includes('.mkv') || stream.url.includes('.webm') || stream.url.includes('video'))) {
+      console.log('🎬 Using built-in video player for direct video URL');
+      playWithBuiltInPlayer(stream);
+    } else if (stream.url && stream.url.startsWith('magnet:')) {
+      console.log('🧲 Using external player for magnet link');
+      tryExternalPlayer(stream.url);
+    } else {
+      console.log('❓ Unknown stream type, trying external player');
+      console.log('🔍 URL details:', {
+        url: stream.url,
+        startsWithHttp: stream.url?.startsWith('http'),
+        includesVideo: stream.url?.includes('video'),
+        includesMp4: stream.url?.includes('.mp4')
+      });
+      tryExternalPlayer(stream.url);
+    }
 
-    console.log('Player launched:', result);
-
-    // Remove loading message
-    document.body.removeChild(loadingMsg);
-
-    // Close modal
+    // Close stream selection modal
     closeStreamModal();
 
   } catch (error) {
     console.error('Failed to play stream:', error);
-    alert('Failed to launch video player: ' + error);
+    alert('Failed to launch video player: ' + (error.message || error));
+  }
+}
+
+// Built-in HTML5 video player function
+function playWithBuiltInPlayer(stream) {
+  console.log('Opening built-in video player for:', stream.url);
+
+  // Set video title to show both movie and stream quality
+  const movieTitle = appState.currentContent ? appState.currentContent.name : 'Unknown Movie';
+  const streamTitle = stream.title || '';
+  elements.videoTitle.textContent = `${movieTitle} - ${streamTitle}`;
+
+  // Show video player modal
+  elements.videoPlayerModal.classList.remove('hidden');
+
+  // Show loading state
+  elements.videoLoading.classList.remove('hidden');
+  elements.videoError.classList.add('hidden');
+  elements.videoPlayer.classList.add('hidden');
+
+  // Set video source
+  elements.videoPlayer.src = stream.url;
+
+  // Video event handlers
+  elements.videoPlayer.onloadstart = () => {
+    console.log('Video loading started');
+    elements.videoLoading.classList.remove('hidden');
+  };
+
+  elements.videoPlayer.oncanplay = () => {
+    console.log('Video can start playing');
+    elements.videoLoading.classList.add('hidden');
+    elements.videoPlayer.classList.remove('hidden');
+    elements.videoPlayer.focus();
+  };
+
+  elements.videoPlayer.onerror = (e) => {
+    console.error('Video playback error:', e);
+    showVideoError('This video format is not supported by the built-in player.');
+  };
+
+  elements.videoPlayer.onended = () => {
+    console.log('Video playback ended');
+    closeVideoPlayer();
+  };
+
+  // Attempt to load and play
+  elements.videoPlayer.load();
+}
+
+// External player fallback function
+async function tryExternalPlayer(streamUrl) {
+  try {
+    console.log('Attempting external video player for:', streamUrl);
+
+    // Show appropriate loading state based on stream type
+    const isMagnet = streamUrl.startsWith('magnet:');
+    const loadingMsg = document.createElement('div');
+    loadingMsg.id = 'stream-status';
+
+    if (isMagnet) {
+      loadingMsg.innerHTML = `
+        <div style="text-align: center;">
+          <div class="loading-spinner" style="margin: 0 auto 15px auto;"></div>
+          <div style="font-size: 18px; margin-bottom: 10px;">Starting torrent stream...</div>
+          <div style="font-size: 14px; color: var(--text-secondary);">This may take 10-30 seconds</div>
+          <div style="font-size: 12px; color: var(--text-secondary); margin-top: 10px;">Setting up HTTP server and downloading initial data</div>
+        </div>
+      `;
+    } else {
+      loadingMsg.innerHTML = `
+        <div style="text-align: center;">
+          <div class="loading-spinner" style="margin: 0 auto 15px auto;"></div>
+          <div style="font-size: 18px;">Launching external video player...</div>
+        </div>
+      `;
+    }
+
+    loadingMsg.style.cssText = `
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: var(--bg-secondary);
+      padding: 30px;
+      border-radius: 12px;
+      z-index: 2000;
+      color: var(--text-primary);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--border-color);
+      min-width: 320px;
+    `;
+    document.body.appendChild(loadingMsg);
+
+    const result = await safeInvoke('play_video_external', { streamUrl: streamUrl });
+    console.log('External player launched:', result);
+
+    // Remove loading message
+    hideStatus();
+
+    // Show success message for torrents
+    if (isMagnet) {
+      showStatus('Video player launched! Stream should start shortly.', 3000);
+    }
+
+  } catch (error) {
+    // Remove loading message if it exists
+    hideStatus();
+
+    console.error('Failed to launch external player:', error);
+
+    // Show user-friendly error message
+    const errorMsg = error.message || error;
+    if (errorMsg === 'undefined' || errorMsg.includes('undefined')) {
+      showError('External video player not available. Please install MPV or VLC media player.');
+    } else if (errorMsg.includes('No video player found')) {
+      showError('No video player found. Please install:\n• Windows: VLC or MPV\n• Steam Deck: Install via Discover app');
+    } else {
+      showError('Failed to launch external video player: ' + errorMsg);
+    }
+  }
+}
+
+// Helper functions for status messages
+function showStatus(message, duration = 0) {
+  hideStatus(); // Remove any existing status
+
+  const statusDiv = document.createElement('div');
+  statusDiv.id = 'stream-status';
+  statusDiv.innerHTML = `
+    <div style="text-align: center;">
+      <div style="font-size: 18px;">${message}</div>
+    </div>
+  `;
+  statusDiv.style.cssText = `
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--bg-secondary);
+    padding: 20px 40px;
+    border-radius: 8px;
+    z-index: 2000;
+    color: var(--text-primary);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--border-color);
+  `;
+  document.body.appendChild(statusDiv);
+
+  // Auto-hide after duration if specified
+  if (duration > 0) {
+    setTimeout(hideStatus, duration);
+  }
+}
+
+function showError(message) {
+  hideStatus(); // Remove any existing status
+
+  const errorDiv = document.createElement('div');
+  errorDiv.id = 'stream-status';
+  errorDiv.innerHTML = `
+    <div style="text-align: center;">
+      <div style="font-size: 18px; color: #ff6b6b; margin-bottom: 10px;">⚠️ Error</div>
+      <div style="font-size: 14px; white-space: pre-line;">${message}</div>
+      <button onclick="hideStatus()" style="
+        margin-top: 15px;
+        padding: 8px 16px;
+        background: var(--accent-color);
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+      ">OK</button>
+    </div>
+  `;
+  errorDiv.style.cssText = `
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--bg-secondary);
+    padding: 25px;
+    border-radius: 8px;
+    z-index: 2000;
+    color: var(--text-primary);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    border: 1px solid #ff6b6b;
+    max-width: 400px;
+  `;
+  document.body.appendChild(errorDiv);
+}
+
+function hideStatus() {
+  const status = document.getElementById('stream-status');
+  if (status) status.remove();
+}
+
+// Video player control functions
+function closeVideoPlayer() {
+  console.log('Closing video player');
+
+  // Pause and reset video
+  if (elements.videoPlayer) {
+    elements.videoPlayer.pause();
+    elements.videoPlayer.src = '';
+    elements.videoPlayer.load();
+  }
+
+  // Hide video modal
+  elements.videoPlayerModal.classList.add('hidden');
+
+  // Clear stored stream URL
+  window.currentStreamUrl = null;
+
+  // Return focus to main content
+  if (appState.focusedElement) {
+    appState.focusedElement.focus();
+  }
+}
+
+function showVideoError(message) {
+  console.error('Video error:', message);
+
+  elements.videoLoading.classList.add('hidden');
+  elements.videoPlayer.classList.add('hidden');
+  elements.videoError.classList.remove('hidden');
+  elements.videoErrorMessage.textContent = message;
+}
+
+// Video keyboard controls
+function handleVideoKeyboard(e) {
+  const video = elements.videoPlayer;
+
+  switch (e.key) {
+    case ' ':
+    case 'k':
+      // Play/Pause
+      if (video.paused) {
+        video.play();
+      } else {
+        video.pause();
+      }
+      e.preventDefault();
+      break;
+
+    case 'f':
+    case 'F11':
+      // Fullscreen
+      if (video.requestFullscreen) {
+        video.requestFullscreen();
+      }
+      e.preventDefault();
+      break;
+
+    case 'Escape':
+      // Close player
+      closeVideoPlayer();
+      e.preventDefault();
+      break;
+
+    case 'ArrowLeft':
+      // Seek backward 10s
+      video.currentTime = Math.max(0, video.currentTime - 10);
+      e.preventDefault();
+      break;
+
+    case 'ArrowRight':
+      // Seek forward 10s
+      video.currentTime = Math.min(video.duration, video.currentTime + 10);
+      e.preventDefault();
+      break;
+
+    case 'ArrowUp':
+      // Volume up
+      video.volume = Math.min(1, video.volume + 0.1);
+      e.preventDefault();
+      break;
+
+    case 'ArrowDown':
+      // Volume down
+      video.volume = Math.max(0, video.volume - 0.1);
+      e.preventDefault();
+      break;
+
+    case 'm':
+      // Mute/unmute
+      video.muted = !video.muted;
+      e.preventDefault();
+      break;
   }
 }
 
@@ -2042,6 +2377,11 @@ window.addEventListener('DOMContentLoaded', async () => {
 });
 
 // Export for controller.js
+// Make status functions globally available
+window.showStatus = showStatus;
+window.showError = showError;
+window.hideStatus = hideStatus;
+
 window.DeckFlixApp = {
   appState,
   elements,
@@ -2053,5 +2393,8 @@ window.DeckFlixApp = {
   handleModalKeyboard,
   performSearch,
   clearSearch,
-  addToContinueWatching
+  addToContinueWatching,
+  showStatus,
+  showError,
+  hideStatus
 };

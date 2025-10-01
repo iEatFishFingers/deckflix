@@ -531,6 +531,7 @@ dependencies = [
 name = "deckflix"
 version = "0.0.0"
 dependencies = [
+ "regex",
  "reqwest 0.11.27",
  "serde",
  "serde_json",
