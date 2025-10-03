@@ -1,0 +1,32 @@
++ videos are stored in tmp file located in the c drive 
+
++ the title of the video doesnt show it shows Unknown Movie - Torrent Stream (Peerflix) instead
+
++ you cant load the videos unless you use the mpv application 
+
++ the internal video doesnt work the screen shows up blank but you can hear the audio 
+
++ it seems that the code actually looks at this folder in the tmp located in the c drive but get the first thing in there which was rick and morty before 
+
++ we need to implement a feature that looks for the ID in this case the god father ID is 20edd4cd63eb1833827c8e35011fb8792e4d77d2 and it should look through the tmp/torrent-stream/20edd4cd63eb1833827c8e35011fb8792e4d77d2 then inside of that will be the vidoeo
+
++ look into this whole setup working on a steam deck make sure the videos will actually play on a steamdeck and the UI will fit the screen
+
++ look into seeing if the user is using a controller it will fully work and it will work in steamdeck controller supporting:
+	-xbox
+	-playstation
+	-steamdeck default settings
+-- FEATURES TO ADD -- 
+
++ similar to stremio when loaidng it should open up with the logo of the actual movie/series and have a loading bar but the loading bar is the logo
+	maybe like stremio having the logo of the film in the middle but 2 versions. 1 being less opace and the other being fully visbale 
+	now when loading the from left to right the fully visbale one will act as the loading bar 
+
++ Now the UI. at the moment ive noticed there is alot of padding around the sides i no longer want that. i want it to be 4 rows of cards that
+	1st row being past watched shows 
+	2nd row being the popular movies that are out
+	3rd row being the popular series that are out
+	4th row being the popular animes that are out
+
+	the user should be able to scroll through each one category 
+

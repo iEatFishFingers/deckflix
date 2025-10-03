@@ -1977,6 +1977,15 @@ async function tryExternalPlayer(streamUrl) {
   try {
     console.log('Attempting external video player for:', streamUrl);
 
+    // Prepare metadata from current content
+    const metadata = appState.currentContent ? {
+      title: appState.currentContent.name,
+      year: appState.currentContent.year || null,
+      content_type: appState.currentContent.content_type || 'movie'
+    } : null;
+
+    console.log('Video metadata:', metadata);
+
     // Show appropriate loading state based on stream type
     const isMagnet = streamUrl.startsWith('magnet:');
     const loadingMsg = document.createElement('div');
@@ -2016,7 +2025,10 @@ async function tryExternalPlayer(streamUrl) {
     `;
     document.body.appendChild(loadingMsg);
 
-    const result = await safeInvoke('play_video_external', { streamUrl: streamUrl });
+    const result = await safeInvoke('play_video_external', {
+      streamUrl: streamUrl,
+      metadata: metadata
+    });
     console.log('Play video result:', result);
 
     // Remove loading message
@@ -2029,7 +2041,7 @@ async function tryExternalPlayer(streamUrl) {
 
       // Create a fake stream object for the built-in player
       const peerflixStream = {
-        title: 'Torrent Stream (Peerflix)',
+        title: metadata ? `${metadata.title}${metadata.year ? ` (${metadata.year})` : ''}` : 'Torrent Stream (Peerflix)',
         url: result
       };
 
