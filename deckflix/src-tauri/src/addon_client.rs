@@ -15,13 +15,12 @@ impl AddonClient {
             .build()
             .expect("Failed to create HTTP client");
 
-        // Use real streaming addon sources with metadata and torrent streams
+        // Use only the two most reliable streaming addon sources
+        // This reduces fake/mislabeled torrents and improves stream quality
         let base_urls = vec![
-            "https://v3-cinemeta.strem.io".to_string(),                    // Primary metadata source
-            "https://torrentio.strem.fun".to_string(),                     // Main torrent source
-            "https://thepiratebay-plus.strem.fun".to_string(),             // PirateBay torrents
-            "https://torrentio.strem.fun/lite".to_string(),                // Lite torrent source
-            "https://prowlarr.elfhosted.com/c/stremio".to_string(),        // Multi-indexer source
+            "https://v3-cinemeta.strem.io".to_string(),                    // Metadata only (movies/series info)
+            "https://torrentio.strem.fun".to_string(),                     // Primary torrent source (most reliable)
+            "https://thepiratebay-plus.strem.fun".to_string(),             // TPB torrents (backup source)
         ];
 
         Self { client, base_urls }
@@ -34,7 +33,7 @@ impl AddonClient {
 
         println!("[RUST] [MOVIES_FETCH] Available streaming addon URLs: {:?}", self.base_urls);
         println!("[RUST] [MOVIES_FETCH] Primary metadata source: https://v3-cinemeta.strem.io/catalog/movie/top.json");
-        println!("[RUST] [MOVIES_FETCH] Additional torrent sources: torrentio, thepiratebay-plus, prowlarr");
+        println!("[RUST] [MOVIES_FETCH] Torrent sources: Torrentio (primary), ThePirateBay+ (backup)");
 
         // Try Cinemeta first (prioritized)
         for (index, base_url) in self.base_urls.iter().enumerate() {
@@ -258,70 +257,13 @@ impl AddonClient {
             return Err(error_msg);
         }
 
-        // Add some direct video streams for testing the built-in player
-        let demo_streams = vec![
-            Stream {
-                name: None,
-                url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4".to_string(),
-                title: "🎬 Demo: Big Buck Bunny (1080p)".to_string(),
-                behavior_hints: None,
-                quality: Some("1080p".to_string()),
-                source: Some("Demo Direct Video".to_string()),
-                seeders: None,
-                leechers: None,
-                size: Some("158 MB".to_string()),
-                language: None,
-                subtitles: None,
-            },
-            Stream {
-                name: None,
-                url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4".to_string(),
-                title: "🎬 Demo: Elephants Dream (720p)".to_string(),
-                behavior_hints: None,
-                quality: Some("720p".to_string()),
-                source: Some("Demo Direct Video".to_string()),
-                seeders: None,
-                leechers: None,
-                size: Some("64 MB".to_string()),
-                language: None,
-                subtitles: None,
-            },
-            Stream {
-                name: None,
-                url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4".to_string(),
-                title: "🎬 Demo: For Bigger Blazes (720p)".to_string(),
-                behavior_hints: None,
-                quality: Some("720p".to_string()),
-                source: Some("Demo Direct Video".to_string()),
-                seeders: None,
-                leechers: None,
-                size: Some("28 MB".to_string()),
-                language: None,
-                subtitles: None,
-            },
-        ];
+        // Sort streams by quality score (best first)
+        all_streams.sort_by(|a, b| {
+            self.calculate_stream_quality_score(b).partial_cmp(&self.calculate_stream_quality_score(a))
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
-        // Add demo streams at the beginning (highest priority)
-        for demo_stream in demo_streams {
-            all_streams.insert(0, demo_stream);
-        }
-
-        // Sort streams by quality score (best first) - but demo streams stay at top
-        let mut demo_count = 3; // Keep first 3 demo streams at top
-        if all_streams.len() > demo_count {
-            let (demo_streams, mut regular_streams): (Vec<_>, Vec<_>) = all_streams.into_iter().enumerate()
-                .partition(|(i, _)| *i < demo_count);
-
-            regular_streams.sort_by(|(_, a), (_, b)| {
-                self.calculate_stream_quality_score(b).partial_cmp(&self.calculate_stream_quality_score(a))
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            });
-
-            all_streams = demo_streams.into_iter().map(|(_, stream)| stream).collect();
-            all_streams.extend(regular_streams.into_iter().map(|(_, stream)| stream));
-        }
-
-        println!("[RUST] [STREAMS_FETCH] Returning {} total streams (including {} demo direct video streams)", all_streams.len(), 3);
+        println!("[RUST] [STREAMS_FETCH] Returning {} total streams", all_streams.len());
         Ok(all_streams)
     }
 
@@ -773,9 +715,47 @@ impl AddonClient {
             .ok_or("'streams' is not an array")?;
 
         let mut parsed_streams = Vec::new();
+
+        // First pass: collect all streams and group by infoHash to detect multi-file torrents
+        let mut info_hash_counts: std::collections::HashMap<String, Vec<u64>> = std::collections::HashMap::new();
+
         for stream in streams {
-            if let Ok(parsed) = self.parse_single_stream(stream) {
-                parsed_streams.push(parsed);
+            if let Some(info_hash) = stream.get("infoHash").and_then(|v| v.as_str()) {
+                if let Some(file_idx) = stream.get("fileIdx").and_then(|v| v.as_u64()) {
+                    info_hash_counts.entry(info_hash.to_string())
+                        .or_insert_with(Vec::new)
+                        .push(file_idx);
+                }
+            }
+        }
+
+        // Second pass: parse streams, but skip FileIdx 0 if multiple files exist for same infoHash
+        for stream in streams {
+            let should_skip = if let Some(info_hash) = stream.get("infoHash").and_then(|v| v.as_str()) {
+                if let Some(file_idx) = stream.get("fileIdx").and_then(|v| v.as_u64()) {
+                    // If this infoHash has multiple files AND this is FileIdx 0, skip it
+                    if let Some(file_indices) = info_hash_counts.get(info_hash) {
+                        if file_indices.len() > 1 && file_idx == 0 {
+                            println!("[RUST] [STREAM_PARSE] ⚠️  Skipping FileIdx 0 from multi-file torrent (InfoHash: {}, total files: {})",
+                                     info_hash, file_indices.len());
+                            true
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            } else {
+                false
+            };
+
+            if !should_skip {
+                if let Ok(parsed) = self.parse_single_stream(stream) {
+                    parsed_streams.push(parsed);
+                }
             }
         }
 
@@ -790,6 +770,12 @@ impl AddonClient {
         } else if let Some(info_hash) = stream.get("infoHash").and_then(|v| v.as_str()) {
             // Torrent magnet link
             let file_idx = stream.get("fileIdx").and_then(|v| v.as_u64()).unwrap_or(0);
+
+            // Log the stream details to debug multi-file torrents
+            let title_preview = stream.get("title").and_then(|v| v.as_str()).unwrap_or("No title");
+            println!("[RUST] [STREAM_PARSE] InfoHash: {} | FileIdx: {} | Title: {}",
+                     info_hash, file_idx, title_preview);
+
             if file_idx > 0 {
                 format!("magnet:?xt=urn:btih:{}&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&so={}", info_hash, file_idx - 1)
             } else {

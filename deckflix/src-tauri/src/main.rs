@@ -27,6 +27,12 @@ async fn fetch_popular_movies(state: State<'_, AppState>) -> Result<Vec<Movie>, 
 
 #[tauri::command]
 async fn fetch_streams(imdb_id: String, state: State<'_, AppState>) -> Result<Vec<Stream>, String> {
+    println!("╔════════════════════════════════════════════════════════════════════");
+    println!("║ [RUST] [FETCH_STREAMS_COMMAND] Tauri command called from JavaScript");
+    println!("║ [RUST] [FETCH_STREAMS_COMMAND] Received IMDB ID: {}", imdb_id);
+    println!("║ [RUST] [FETCH_STREAMS_COMMAND] ID Length: {}", imdb_id.len());
+    println!("╚════════════════════════════════════════════════════════════════════");
+
     let client = state.client.lock().await;
     client.fetch_streams(&imdb_id).await
 }
@@ -39,9 +45,10 @@ async fn play_video_external(
 ) -> Result<String, String> {
     println!("[RUST] [VIDEO_PLAYER] ==============================================");
     println!("[RUST] [VIDEO_PLAYER] Starting video playback process");
-    println!("[RUST] [VIDEO_PLAYER] Stream URL: {}", stream_url);
+    println!("[RUST] [VIDEO_PLAYER] Stream URL received from JavaScript: {}", stream_url);
     println!("[RUST] [VIDEO_PLAYER] Stream type: {}", if stream_url.starts_with("magnet:") { "Magnet Link" } else { "Direct URL" });
     println!("[RUST] [VIDEO_PLAYER] URL length: {} characters", stream_url.len());
+    println!("[RUST] [VIDEO_PLAYER] First 100 chars of URL: {}", &stream_url.chars().take(100).collect::<String>());
 
     let shell = app.shell();
 
@@ -56,88 +63,11 @@ async fn play_video_external(
         let local_url = streamer.start_stream(stream_url).await?;
 
         println!("[RUST] [VIDEO_PLAYER] 🎯 Peerflix stream ready at: {}", local_url);
-        println!("[RUST] [VIDEO_PLAYER] ⏳ Waiting additional time for buffering...");
+        println!("[RUST] [VIDEO_PLAYER] 📺 Returning stream URL to frontend for built-in player");
 
-        // Wait longer for better buffering before launching player
-        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-
-        println!("[RUST] [VIDEO_PLAYER] 🚀 Launching video player...");
-
-        // Try external video players first (better streaming experience)
-        let players = vec![
-            ("mpv", vec!["--keep-open=yes", "--cache=yes", "--demuxer-readahead-secs=20"]),
-            ("vlc", vec!["--intf", "dummy"]),
-        ];
-
-        for (player, args) in players {
-            println!("[RUST] [VIDEO_PLAYER] 🎬 Trying {}", player);
-
-            let mut cmd = shell.command(player);
-            for arg in args {
-                cmd = cmd.arg(arg);
-            }
-            cmd = cmd.arg(&local_url);
-
-            match cmd.spawn() {
-                Ok((_, child)) => {
-                    let success_msg = format!("✅ Successfully launched {} with Peerflix stream (PID: {:?})", player, child.pid());
-                    println!("[RUST] [VIDEO_PLAYER] {}", success_msg);
-                    println!("[RUST] [VIDEO_PLAYER] 📺 Video should start playing shortly");
-                    println!("[RUST] [VIDEO_PLAYER] 🔄 Peerflix will continue downloading in background");
-                    return Ok(success_msg);
-                }
-                Err(e) => {
-                    println!("[RUST] [VIDEO_PLAYER] ❌ {} failed: {:?}", player, e);
-                    continue;
-                }
-            }
-        }
-
-        // Fallback to browser if external players fail
-        println!("[RUST] [VIDEO_PLAYER] 🌐 External players failed, trying browser...");
-
-        let browsers = vec![
-            "start",                                    // Windows default browser
-            "cmd /c start \"\"",                        // Windows alternative
-            "xdg-open",                                 // Linux default
-            "open",                                     // macOS default
-        ];
-
-        for browser in browsers {
-            println!("[RUST] [VIDEO_PLAYER] 🌐 Trying browser: {}", browser);
-
-            let result = if browser.contains("cmd /c start") {
-                shell.command("cmd")
-                    .arg("/c")
-                    .arg("start")
-                    .arg("")
-                    .arg(&local_url)
-                    .spawn()
-            } else if browser == "start" {
-                shell.command("start")
-                    .arg(&local_url)
-                    .spawn()
-            } else {
-                shell.command(browser)
-                    .arg(&local_url)
-                    .spawn()
-            };
-
-            match result {
-                Ok((_, _)) => {
-                    let success_msg = format!("✅ Successfully opened Peerflix stream in browser using: {}", browser);
-                    println!("[RUST] [VIDEO_PLAYER] {}", success_msg);
-                    println!("[RUST] [VIDEO_PLAYER] 🌐 Stream should open in your default browser");
-                    return Ok(success_msg);
-                }
-                Err(e) => {
-                    println!("[RUST] [VIDEO_PLAYER] ❌ Browser {} failed: {:?}", browser, e);
-                    continue;
-                }
-            }
-        }
-
-        return Err(format!("Could not launch video player or browser. Please manually open: {}", local_url));
+        // Return the local stream URL to the frontend
+        // The frontend will play it in the built-in HTML5 video player
+        return Ok(local_url);
     }
 
     // Direct HTTP URL - use existing code

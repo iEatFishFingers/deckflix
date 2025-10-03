@@ -192,6 +192,9 @@ async function initApp() {
     await checkAddonStatus();
 
     DEBUG.log('APP_INIT', 'Loading continue watching data...');
+    // TEMPORARY: Clear localStorage to remove any cached bad data
+    console.log('🧹 Clearing localStorage to fix ID caching issue...');
+    localStorage.clear();
     // Load continue watching from localStorage
     loadContinueWatching();
 
@@ -1483,10 +1486,17 @@ function displayContinueWatching() {
 }
 
 function createContentCard(content, index, contentType) {
+  console.log(`📝 Creating card ${index}:`, {
+    id: content.id,
+    name: content.name,
+    contentType: contentType
+  });
+
   const card = document.createElement('div');
   card.className = 'content-card focusable movie-card';
   card.dataset.contentIndex = index;
   card.dataset.contentType = contentType;
+  card.dataset.contentId = content.id; // Store the ID
   card.tabIndex = 0;
 
   // Content poster with enhanced loading
@@ -1746,9 +1756,20 @@ function setFocusedElement(element) {
 }
 
 async function selectContent(content, contentType) {
+  // EXTREME DEBUGGING: Log everything
+  console.error('========== SELECT CONTENT CALLED ==========');
+  console.error('typeof content:', typeof content);
+  console.error('content keys:', Object.keys(content));
+  console.error('content.id VALUE:', content.id);
+  console.error('content.name VALUE:', content.name);
+  console.error('Full content:', JSON.parse(JSON.stringify(content)));
+  console.error('==========================================');
+
   appState.currentContent = content;
   console.log('🎬 Selected content:', content.name, 'Type:', contentType);
   console.log('🔍 Content object:', content);
+  console.log('🆔 IMDB ID:', content.id);
+  console.log('📊 Full content data:', JSON.stringify(content, null, 2));
 
   // Add to continue watching
   addToContinueWatching(content, contentType, 0);
@@ -1858,9 +1879,13 @@ function extractQuality(title) {
 
 async function playStream(stream) {
   try {
-    console.log('🎯 Playing stream:', stream.title);
-    console.log('🔗 Stream URL:', stream.url);
-    console.log('🎬 Movie:', appState.currentContent?.name);
+    console.log('═══════════════════════════════════════════════════════════');
+    console.log('🎯 [PLAY_STREAM] Playing stream:', stream.title);
+    console.log('🔗 [PLAY_STREAM] Stream URL:', stream.url);
+    console.log('🎬 [PLAY_STREAM] Movie:', appState.currentContent?.name);
+    console.log('🆔 [PLAY_STREAM] Movie IMDB ID:', appState.currentContent?.id);
+    console.log('📦 [PLAY_STREAM] Full stream object:', JSON.stringify(stream, null, 2));
+    console.log('═══════════════════════════════════════════════════════════');
 
     // Store current stream URL for retry functionality
     window.currentStreamUrl = stream.url;
@@ -1911,8 +1936,14 @@ function playWithBuiltInPlayer(stream) {
   elements.videoError.classList.add('hidden');
   elements.videoPlayer.classList.add('hidden');
 
-  // Set video source
+  // IMPORTANT: Clear the video source first to prevent browser caching
+  // Then set new source and force reload
+  elements.videoPlayer.src = '';
+  elements.videoPlayer.load(); // Force clear
+
+  // Now set the new video source
   elements.videoPlayer.src = stream.url;
+  elements.videoPlayer.load(); // Force reload with new source
 
   // Video event handlers
   elements.videoPlayer.onloadstart = () => {
@@ -1956,8 +1987,8 @@ async function tryExternalPlayer(streamUrl) {
         <div style="text-align: center;">
           <div class="loading-spinner" style="margin: 0 auto 15px auto;"></div>
           <div style="font-size: 18px; margin-bottom: 10px;">Starting torrent stream...</div>
-          <div style="font-size: 14px; color: var(--text-secondary);">This may take 10-30 seconds</div>
-          <div style="font-size: 12px; color: var(--text-secondary); margin-top: 10px;">Setting up HTTP server and downloading initial data</div>
+          <div style="font-size: 14px; color: var(--text-secondary);">Setting up Peerflix and downloading...</div>
+          <div style="font-size: 12px; color: var(--text-secondary); margin-top: 10px;">This may take a few seconds</div>
         </div>
       `;
     } else {
@@ -1986,14 +2017,26 @@ async function tryExternalPlayer(streamUrl) {
     document.body.appendChild(loadingMsg);
 
     const result = await safeInvoke('play_video_external', { streamUrl: streamUrl });
-    console.log('External player launched:', result);
+    console.log('Play video result:', result);
 
     // Remove loading message
     hideStatus();
 
-    // Show success message for torrents
-    if (isMagnet) {
-      showStatus('Video player launched! Stream should start shortly.', 3000);
+    // For magnet links, Peerflix returns the local HTTP stream URL
+    // Play it in the built-in player
+    if (isMagnet && result && typeof result === 'string' && result.startsWith('http://127.0.0.1:')) {
+      console.log('🎬 Opening Peerflix stream in built-in player:', result);
+
+      // Create a fake stream object for the built-in player
+      const peerflixStream = {
+        title: 'Torrent Stream (Peerflix)',
+        url: result
+      };
+
+      playWithBuiltInPlayer(peerflixStream);
+    } else if (isMagnet) {
+      // Fallback: If we didn't get a URL, show success message
+      showStatus('Torrent stream started!', 3000);
     }
 
   } catch (error) {

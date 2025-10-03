@@ -61,16 +61,39 @@ impl TorrentStreamer {
 
         println!("[RUST] [TORRENT] ✅ Peerflix found");
 
+        // Extract file index from magnet link if present (&so= parameter)
+        let file_index = if let Some(so_pos) = magnet_link.find("&so=") {
+            let start = so_pos + 4; // Skip "&so="
+            let end = magnet_link[start..].find('&').map(|p| start + p).unwrap_or(magnet_link.len());
+            magnet_link[start..end].parse::<usize>().ok()
+        } else {
+            None
+        };
+
         // Start peerflix process
         println!("[RUST] [TORRENT] 🚀 Starting Peerflix process...");
-        println!("[RUST] [TORRENT] Command: {} \"{}\" --port {} --not-on-top", working_command, magnet_link, self.stream_port);
+        if let Some(idx) = file_index {
+            println!("[RUST] [TORRENT] 📂 File index detected: {} (will use Peerflix --select)", idx);
+            println!("[RUST] [TORRENT] Command: {} \"{}\" --port {} --select {} --not-on-top", working_command, magnet_link, self.stream_port, idx);
+        } else {
+            println!("[RUST] [TORRENT] Command: {} \"{}\" --port {} --not-on-top", working_command, magnet_link, self.stream_port);
+        }
 
-        let child = Command::new(working_command)
+        let mut command = Command::new(working_command);
+        command
             .arg(&magnet_link)
             .arg("--port")
             .arg(self.stream_port.to_string())
-            .arg("--not-on-top") // Don't prioritize latest pieces for better streaming
-            .arg("--quiet") // Reduce output noise
+            .arg("--not-on-top"); // Don't prioritize latest pieces for better streaming
+
+        // Add file selection if we have a file index
+        if let Some(idx) = file_index {
+            command.arg("--select").arg(idx.to_string());
+        }
+
+        command.arg("--quiet"); // Reduce output noise
+
+        let child = command
             .spawn()
             .map_err(|e| format!("Failed to start peerflix: {}", e))?;
 
