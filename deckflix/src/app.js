@@ -1756,15 +1756,6 @@ function setFocusedElement(element) {
 }
 
 async function selectContent(content, contentType) {
-  // EXTREME DEBUGGING: Log everything
-  console.error('========== SELECT CONTENT CALLED ==========');
-  console.error('typeof content:', typeof content);
-  console.error('content keys:', Object.keys(content));
-  console.error('content.id VALUE:', content.id);
-  console.error('content.name VALUE:', content.name);
-  console.error('Full content:', JSON.parse(JSON.stringify(content)));
-  console.error('==========================================');
-
   appState.currentContent = content;
   console.log('🎬 Selected content:', content.name, 'Type:', contentType);
   console.log('🔍 Content object:', content);
