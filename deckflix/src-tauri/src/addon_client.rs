@@ -127,19 +127,31 @@ impl AddonClient {
     }
 
     pub async fn fetch_popular_anime(&self) -> Result<Vec<Anime>, String> {
-        println!("[RUST] [ANIME_FETCH] Starting to fetch anime using series endpoint with filtering...");
+        println!("[RUST] [ANIME_FETCH] Starting to fetch anime from both movies and series endpoints...");
         let mut all_anime = Vec::new();
 
-        println!("[RUST] [ANIME_FETCH] Using series/top endpoint and filtering for anime content");
-
         for base_url in &self.base_urls {
+            // Fetch from series catalog
+            println!("[RUST] [ANIME_FETCH] Fetching anime from series catalog: {}", base_url);
             match self.fetch_anime_from_addon(base_url, "top").await {
                 Ok(mut anime) => {
+                    println!("[RUST] [ANIME_FETCH] Found {} anime series from {}", anime.len(), base_url);
                     all_anime.append(&mut anime);
                 }
                 Err(e) => {
-                    eprintln!("Failed to fetch anime from {}: {}", base_url, e);
-                    continue;
+                    eprintln!("Failed to fetch anime series from {}: {}", base_url, e);
+                }
+            }
+
+            // Also fetch from movie catalog and filter for anime
+            println!("[RUST] [ANIME_FETCH] Fetching anime from movie catalog: {}", base_url);
+            match self.fetch_anime_movies_from_addon(base_url, "top").await {
+                Ok(mut anime_movies) => {
+                    println!("[RUST] [ANIME_FETCH] Found {} anime movies from {}", anime_movies.len(), base_url);
+                    all_anime.append(&mut anime_movies);
+                }
+                Err(e) => {
+                    eprintln!("Failed to fetch anime movies from {}: {}", base_url, e);
                 }
             }
         }
@@ -152,6 +164,8 @@ impl AddonClient {
         all_anime.sort_by(|a, b| a.id.cmp(&b.id));
         all_anime.dedup_by(|a, b| a.id == b.id);
         all_anime.truncate(100);
+
+        println!("[RUST] [ANIME_FETCH] Total anime after deduplication: {}", all_anime.len());
 
         Ok(all_anime)
     }
@@ -405,7 +419,7 @@ impl AddonClient {
         base_url: &str,
         catalog: &str,
     ) -> Result<Vec<Anime>, String> {
-        // For now, treat anime same as series - could be enhanced with anime-specific addons later
+        // Fetch anime from series catalog
         let url = format!("{}/catalog/series/{}.json", base_url, catalog);
 
         let response = self
@@ -426,6 +440,52 @@ impl AddonClient {
 
         let anime = self.parse_anime_from_json(json)?;
         Ok(anime)
+    }
+
+    async fn fetch_anime_movies_from_addon(
+        &self,
+        base_url: &str,
+        catalog: &str,
+    ) -> Result<Vec<Anime>, String> {
+        // Fetch from movie catalog and filter for anime
+        let url = format!("{}/catalog/movie/{}.json", base_url, catalog);
+
+        let response = self
+            .client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| format!("Network error: {}", e))?;
+
+        if !response.status().is_success() {
+            return Err(format!("HTTP error: {}", response.status()));
+        }
+
+        let json: Value = response
+            .json()
+            .await
+            .map_err(|e| format!("JSON parse error: {}", e))?;
+
+        // Parse as anime and filter for anime content only
+        let mut all_content = self.parse_anime_from_json(json)?;
+
+        // Filter to keep only actual anime movies based on keywords
+        all_content.retain(|anime| {
+            let name_lower = anime.name.to_lowercase();
+            let description_lower = anime.description.as_ref().map(|d| d.to_lowercase()).unwrap_or_default();
+
+            // Use same anime detection logic
+            let anime_keywords = [
+                "anime", "manga", "japanese animation", "studio ghibli", "miyazaki",
+                "pokemon", "naruto", "dragon ball", "one piece", "spirited away"
+            ];
+
+            anime_keywords.iter().any(|keyword| {
+                name_lower.contains(keyword) || description_lower.contains(keyword)
+            })
+        });
+
+        Ok(all_content)
     }
 
     // Search movies specifically

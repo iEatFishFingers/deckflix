@@ -144,7 +144,16 @@ async function initApp() {
       animeLoading: document.getElementById('anime-loading'),
       animeError: document.getElementById('anime-error'),
 
-      // Modal elements
+      // Episode picker modal elements
+      episodeModal: document.getElementById('episode-modal'),
+      episodeModalTitle: document.getElementById('episode-modal-title'),
+      closeEpisodeModal: document.getElementById('close-episode-modal'),
+      seasonSelect: document.getElementById('season-select'),
+      episodesList: document.getElementById('episodes-list'),
+      episodeLoading: document.getElementById('episode-loading'),
+      episodeError: document.getElementById('episode-error'),
+
+      // Stream modal elements
       streamModal: document.getElementById('stream-modal'),
       modalMovieTitle: document.getElementById('modal-movie-title'),
       streamsLoading: document.getElementById('streams-loading'),
@@ -242,10 +251,16 @@ function setupEventListeners() {
   // Global retry
   elements.globalRetry.addEventListener('click', loadAllContent);
 
-  // Modal close
-  elements.closeModal.addEventListener('click', closeStreamModal);
+  // Episode modal close
+  elements.closeEpisodeModal.addEventListener('click', closeEpisodeModal);
+  elements.episodeModal.addEventListener('click', (e) => {
+    if (e.target === elements.episodeModal) {
+      closeEpisodeModal();
+    }
+  });
 
-  // Click outside modal to close
+  // Stream modal close
+  elements.closeModal.addEventListener('click', closeStreamModal);
   elements.streamModal.addEventListener('click', (e) => {
     if (e.target === elements.streamModal) {
       closeStreamModal();
@@ -601,7 +616,8 @@ async function performSearch(query) {
 
       // Log content type breakdown
       const contentTypes = rankedResults.reduce((acc, result) => {
-        acc[result.content_type] = (acc[result.content_type] || 0) + 1;
+        const type = result.type || 'movie';
+        acc[type] = (acc[type] || 0) + 1;
         return acc;
       }, {});
       DEBUG.log('SEARCH', 'Content type breakdown', contentTypes);
@@ -767,7 +783,8 @@ function getSecondaryScore(movie) {
   }
 
   // Content type preference (movies slightly preferred)
-  switch (movie.content_type) {
+  const contentType = movie.type || 'movie';
+  switch (contentType) {
     case 'movie': score += 2; break;
     case 'series': score += 1; break;
     case 'anime': score += 1; break;
@@ -1201,7 +1218,7 @@ function displaySearchResults(results) {
     try {
       DEBUG.log('SEARCH_DISPLAY', `Processing result ${index + 1}/${validResults.length}`, {
         name: result.name || result.title,
-        contentType: result.content_type,
+        contentType: result.type, // Correct field name from JSON
         id: result.id,
         hasMinimumData: !!(result.name || result.title)
       });
@@ -1216,8 +1233,8 @@ function displaySearchResults(results) {
           successCount++;
         }
 
-        // Count content types
-        const cardType = result.content_type || 'movie';
+        // Count content types (use result.type, not result.content_type)
+        const cardType = result.type || 'movie';
         switch (cardType) {
           case 'anime': animeCount++; break;
           case 'movie': movieCount++; break;
@@ -1291,7 +1308,7 @@ function validateAndFilterSearchResults(results) {
         hasId: !!(result?.id || result?.imdb_id),
         hasName: !!(result?.name || result?.title),
         hasPoster: !!result?.poster,
-        contentType: result?.content_type || 'unknown'
+        contentType: result?.type || 'unknown' // Correct field name from JSON
       });
     }
 
@@ -1321,7 +1338,7 @@ function createSearchResultCard(result, index) {
     hasName: !!result.name,
     hasTitle: !!result.title,
     hasPoster: !!result.poster,
-    contentType: result.content_type,
+    contentType: result.type, // Correct field name from JSON
     resultKeys: Object.keys(result)
   });
 
@@ -1332,7 +1349,8 @@ function createSearchResultCard(result, index) {
     const cardPoster = result.poster;
     const cardYear = result.year || result.releaseInfo?.split('-')[0] || "N/A";
     const cardRating = result.imdb_rating || result.rating || null;
-    const cardType = result.content_type || "movie";
+    // IMPORTANT: Rust serializes content_type as "type" in JSON (serde rename)
+    const cardType = result.type || "movie";
     const cardDescription = result.description || null;
 
     DEBUG.log('CARD_CREATE', `Using processed data for card ${index}`, {
@@ -1446,7 +1464,7 @@ function createSearchResultCard(result, index) {
       poster: cardPoster,
       year: cardYear,
       imdb_rating: cardRating,
-      content_type: cardType,
+      type: cardType, // Match the JSON field name from Rust (serde rename)
       description: cardDescription
     };
 
@@ -1654,7 +1672,8 @@ function createContinueWatchingCard(item, index) {
   const card = document.createElement('div');
   card.className = 'continue-watching-card focusable';
   card.dataset.contentIndex = index;
-  card.dataset.contentType = item.content_type;
+  const contentType = item.type || item.content_type || 'movie'; // Support both old and new format
+  card.dataset.contentType = contentType;
   card.tabIndex = 0;
 
   // Content poster with progress
@@ -1677,12 +1696,12 @@ function createContinueWatchingCard(item, index) {
     img.src = item.poster;
     img.alt = item.name;
     img.onerror = () => {
-      poster.innerHTML = getContentIcon(item.content_type) + ' No Image';
+      poster.innerHTML = getContentIcon(contentType) + ' No Image';
       poster.appendChild(progressBg);
     };
     poster.appendChild(img);
   } else {
-    poster.innerHTML = getContentIcon(item.content_type) + ' No Image';
+    poster.innerHTML = getContentIcon(contentType) + ' No Image';
   }
 
   poster.appendChild(progressBg);
@@ -1708,7 +1727,7 @@ function createContinueWatchingCard(item, index) {
   card.appendChild(info);
 
   // Add click listener
-  card.addEventListener('click', () => selectContent(item, item.content_type));
+  card.addEventListener('click', () => selectContent(item, contentType));
 
   // Add focus listener
   card.addEventListener('focus', () => {
@@ -1749,17 +1768,22 @@ function saveContinueWatching() {
   }
 }
 
-function addToContinueWatching(content, contentType, progress = 0) {
+function addToContinueWatching(content, contentType, progress = 0, episodeInfo = null) {
   const existingIndex = appState.continueWatching.findIndex(item => item.id === content.id);
 
   const continueItem = {
     id: content.id,
     name: content.name,
     poster: content.poster,
-    content_type: contentType,
+    type: contentType, // Use 'type' for consistency with Rust API
     progress: progress,
     last_watched: new Date().toISOString()
   };
+
+  // Add episode info for series/anime
+  if (episodeInfo) {
+    continueItem.episode = episodeInfo;
+  }
 
   if (existingIndex >= 0) {
     appState.continueWatching[existingIndex] = continueItem;
@@ -1806,21 +1830,148 @@ function setFocusedElement(element) {
 }
 
 async function selectContent(content, contentType) {
-  // EXTREME DEBUGGING: Log everything
-  console.error('========== SELECT CONTENT CALLED ==========');
-  console.error('typeof content:', typeof content);
-  console.error('content keys:', Object.keys(content));
-  console.error('content.id VALUE:', content.id);
-  console.error('content.name VALUE:', content.name);
-  console.error('Full content:', JSON.parse(JSON.stringify(content)));
-  console.error('==========================================');
+  console.log('=== SELECT CONTENT DEBUG ===');
+  console.log('Content name:', content.name);
+  console.log('contentType parameter:', contentType);
+  console.log('content.type field:', content.type);
+  console.log('=========================');
+
+  DEBUG.log('SELECT_CONTENT', `Selected: ${content.name}, Type: ${contentType}, content.type: ${content.type}`);
 
   appState.currentContent = content;
-  console.log('🎬 Selected content:', content.name, 'Type:', contentType);
-  console.log('🔍 Content object:', content);
-  console.log('🆔 IMDB ID:', content.id);
-  console.log('📊 Full content data:', JSON.stringify(content, null, 2));
 
+  // Check if it's a series or anime - show episode picker
+  // Check both the passed contentType and the content.type field
+  const isSeries = contentType === 'series' ||
+                   contentType === 'anime' ||
+                   content.type === 'series' ||
+                   content.type === 'anime';
+
+  console.log('isSeries result:', isSeries);
+
+  DEBUG.log('SELECT_CONTENT', `isSeries check: ${isSeries} (contentType: ${contentType}, content.type: ${content.type})`);
+
+  if (isSeries) {
+    console.log('✓ Showing EPISODE PICKER');
+    DEBUG.log('SELECT_CONTENT', 'Content is a series/anime, showing episode picker');
+    showEpisodePicker(content, contentType);
+  } else {
+    console.log('✓ Showing STREAMS directly (movie)');
+    DEBUG.log('SELECT_CONTENT', 'Content is a movie, showing streams directly');
+    showStreamsForMovie(content, contentType);
+  }
+}
+
+function showEpisodePicker(content, contentType) {
+  DEBUG.log('EPISODE_PICKER', `Showing episode picker for: ${content.name}`);
+
+  // Show episode modal
+  elements.episodeModalTitle.textContent = content.name;
+  elements.episodeModal.classList.remove('hidden');
+
+  // For now, generate simple season/episode options (1-10 seasons, 1-20 episodes each)
+  // TODO: In future, fetch actual episode data from API
+  const seasonSelect = elements.seasonSelect;
+  seasonSelect.innerHTML = '';
+
+  // Generate seasons (1-10)
+  for (let season = 1; season <= 10; season++) {
+    const option = document.createElement('option');
+    option.value = season;
+    option.textContent = `Season ${season}`;
+    seasonSelect.appendChild(option);
+  }
+
+  // Function to display episodes for selected season
+  function displayEpisodesForSeason(season) {
+    const episodesList = elements.episodesList;
+    episodesList.innerHTML = '';
+
+    // Generate episodes (1-20)
+    for (let episode = 1; episode <= 20; episode++) {
+      const episodeItem = document.createElement('div');
+      episodeItem.className = 'episode-item focusable';
+      episodeItem.tabIndex = 0;
+      episodeItem.dataset.season = season;
+      episodeItem.dataset.episode = episode;
+
+      const episodeTitle = document.createElement('div');
+      episodeTitle.className = 'episode-title';
+      episodeTitle.textContent = `Episode ${episode}`;
+
+      const episodeNum = document.createElement('div');
+      episodeNum.className = 'episode-number';
+      episodeNum.textContent = `S${season}E${episode}`;
+
+      episodeItem.appendChild(episodeTitle);
+      episodeItem.appendChild(episodeNum);
+
+      // Click handler for episode
+      episodeItem.addEventListener('click', () => {
+        selectEpisode(content, contentType, season, episode);
+      });
+
+      episodesList.appendChild(episodeItem);
+    }
+
+    // Focus first episode
+    const firstEpisode = episodesList.querySelector('.episode-item');
+    if (firstEpisode) {
+      firstEpisode.focus();
+    }
+  }
+
+  // Initial display of season 1 episodes
+  displayEpisodesForSeason(1);
+
+  // Handle season change
+  seasonSelect.addEventListener('change', () => {
+    const selectedSeason = parseInt(seasonSelect.value);
+    displayEpisodesForSeason(selectedSeason);
+  });
+}
+
+async function selectEpisode(content, contentType, season, episode) {
+  DEBUG.log('EPISODE_SELECT', `Selected S${season}E${episode} of ${content.name}`);
+
+  // Close episode picker
+  elements.episodeModal.classList.add('hidden');
+
+  // Construct episode IMDB ID (format: tt1234567:season:episode)
+  const episodeId = `${content.id}:${season}:${episode}`;
+
+  // Add to continue watching with episode info
+  addToContinueWatching(content, contentType, 0, { season, episode });
+
+  // Show stream modal
+  elements.modalMovieTitle.textContent = `${content.name} - S${season}E${episode}`;
+  elements.streamModal.classList.remove('hidden');
+
+  // Show loading
+  elements.streamsLoading.classList.remove('hidden');
+  elements.streamsList.classList.add('hidden');
+  elements.streamsError.classList.add('hidden');
+
+  try {
+    DEBUG.log('STREAMS', `Fetching streams for episode: ${episodeId}`);
+    const streams = await safeInvoke('fetch_streams', { imdbId: episodeId });
+
+    DEBUG.log('STREAMS', `Received ${streams.length} streams`);
+    appState.currentStreams = streams;
+
+    if (streams.length === 0) {
+      throw new Error('No streams available for this episode');
+    }
+
+    displayStreams(streams);
+
+  } catch (error) {
+    DEBUG.error('STREAMS', 'Failed to load episode streams', error);
+    showStreamsError();
+  }
+}
+
+async function showStreamsForMovie(content, contentType) {
   // Add to continue watching
   addToContinueWatching(content, contentType, 0);
 
@@ -1834,10 +1985,10 @@ async function selectContent(content, contentType) {
   elements.streamsError.classList.add('hidden');
 
   try {
-    console.log('Fetching streams for:', content.id);
+    DEBUG.log('STREAMS', `Fetching streams for movie: ${content.id}`);
     const streams = await safeInvoke('fetch_streams', { imdbId: content.id });
 
-    console.log('Streams received:', streams.length);
+    DEBUG.log('STREAMS', `Received ${streams.length} streams`);
     appState.currentStreams = streams;
 
     if (streams.length === 0) {
@@ -1847,7 +1998,7 @@ async function selectContent(content, contentType) {
     displayStreams(streams);
 
   } catch (error) {
-    console.error('Failed to load streams:', error);
+    DEBUG.error('STREAMS', 'Failed to load streams', error);
     showStreamsError();
   }
 }
@@ -2274,6 +2425,15 @@ function handleVideoKeyboard(e) {
       video.muted = !video.muted;
       e.preventDefault();
       break;
+  }
+}
+
+function closeEpisodeModal() {
+  elements.episodeModal.classList.add('hidden');
+
+  // Return focus to content
+  if (appState.focusedElement) {
+    appState.focusedElement.focus();
   }
 }
 

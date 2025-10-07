@@ -140,6 +140,38 @@
       </div>
     </main>
 
+    <!-- Episode Selection Modal (for series/anime) -->
+    <div id="episode-modal" class="modal hidden">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 id="episode-modal-title">Select Episode</h2>
+          <button id="close-episode-modal" class="close-btn">✕</button>
+        </div>
+        <div class="modal-body">
+          <div id="episode-loading" class="loading-spinner hidden"></div>
+          <div id="episode-selector" class="episode-selector">
+            <div class="season-selector">
+              <label for="season-select">Season:</label>
+              <select id="season-select" class="season-select">
+                <!-- Seasons will be populated here -->
+              </select>
+            </div>
+            <div id="episodes-list" class="episodes-list">
+              <!-- Episodes will be populated here -->
+            </div>
+          </div>
+          <div id="episode-error" class="error-content hidden">
+            <p>No episodes available.</p>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <div class="controls-hint">
+            <span>A: Select • B: Back • ↑↓: Navigate</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Stream Selection Modal -->
     <div id="stream-modal" class="modal hidden">
       <div class="modal-content">
