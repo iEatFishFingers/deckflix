@@ -1756,6 +1756,15 @@ function setFocusedElement(element) {
 }
 
 async function selectContent(content, contentType) {
+  // EXTREME DEBUGGING: Log everything
+  console.error('========== SELECT CONTENT CALLED ==========');
+  console.error('typeof content:', typeof content);
+  console.error('content keys:', Object.keys(content));
+  console.error('content.id VALUE:', content.id);
+  console.error('content.name VALUE:', content.name);
+  console.error('Full content:', JSON.parse(JSON.stringify(content)));
+  console.error('==========================================');
+
   appState.currentContent = content;
   console.log('🎬 Selected content:', content.name, 'Type:', contentType);
   console.log('🔍 Content object:', content);
@@ -2272,37 +2281,128 @@ function handleKeyboard(e) {
     return;
   }
 
-  // Content grid navigation optimized for Steam Deck
-  const allCards = Array.from(document.querySelectorAll('.content-card:not(.hidden), .continue-watching-card:not(.hidden), .movie-card:not(.hidden)'));
-  if (allCards.length === 0) return;
+  // Get all visible sections with their cards
+  const sections = [];
 
-  const currentIndex = appState.focusIndex;
-  let newIndex = currentIndex;
+  // Continue Watching
+  if (!elements.continueWatchingSection.classList.contains('hidden')) {
+    const cards = Array.from(elements.continueWatchingGrid.querySelectorAll('.continue-watching-card:not(.hidden)'));
+    if (cards.length > 0) {
+      sections.push({ name: 'continue-watching', cards: cards, grid: elements.continueWatchingGrid });
+    }
+  }
 
-  // Calculate grid columns based on Steam Deck resolution
-  const isPortrait = window.innerHeight > window.innerWidth;
-  const cols = isPortrait ? 4 : (window.innerWidth <= 1280 ? 5 : 6);
+  // Movies
+  if (!elements.moviesSection.classList.contains('hidden')) {
+    const cards = Array.from(elements.moviesGrid.querySelectorAll('.content-card:not(.hidden), .movie-card:not(.hidden)'));
+    if (cards.length > 0) {
+      sections.push({ name: 'movies', cards: cards, grid: elements.moviesGrid });
+    }
+  }
+
+  // Series
+  if (!elements.seriesSection.classList.contains('hidden')) {
+    const cards = Array.from(elements.seriesGrid.querySelectorAll('.content-card:not(.hidden), .movie-card:not(.hidden)'));
+    if (cards.length > 0) {
+      sections.push({ name: 'series', cards: cards, grid: elements.seriesGrid });
+    }
+  }
+
+  // Anime
+  if (!elements.animeSection.classList.contains('hidden')) {
+    const cards = Array.from(elements.animeGrid.querySelectorAll('.content-card:not(.hidden), .movie-card:not(.hidden)'));
+    if (cards.length > 0) {
+      sections.push({ name: 'anime', cards: cards, grid: elements.animeGrid });
+    }
+  }
+
+  // Search results
+  if (!elements.searchSection.classList.contains('hidden')) {
+    const cards = Array.from(elements.searchGrid.querySelectorAll('.content-card:not(.hidden), .movie-card:not(.hidden)'));
+    if (cards.length > 0) {
+      sections.push({ name: 'search', cards: cards, grid: elements.searchGrid });
+    }
+  }
+
+  if (sections.length === 0) return;
+
+  // Find current section and card index within that section
+  const focusedCard = appState.focusedElement;
+  let currentSectionIndex = 0;
+  let currentCardIndex = 0;
+
+  if (focusedCard) {
+    for (let i = 0; i < sections.length; i++) {
+      const cardIndex = sections[i].cards.indexOf(focusedCard);
+      if (cardIndex !== -1) {
+        currentSectionIndex = i;
+        currentCardIndex = cardIndex;
+        break;
+      }
+    }
+  }
 
   switch (e.key) {
     case 'ArrowLeft':
-      newIndex = Math.max(0, currentIndex - 1);
+      // Move to previous card in current section
+      if (currentCardIndex > 0) {
+        const newCard = sections[currentSectionIndex].cards[currentCardIndex - 1];
+        setFocusedElement(newCard);
+        newCard.focus();
+        newCard.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        e.preventDefault();
+      }
       break;
+
     case 'ArrowRight':
-      newIndex = Math.min(allCards.length - 1, currentIndex + 1);
+      // Move to next card in current section
+      if (currentCardIndex < sections[currentSectionIndex].cards.length - 1) {
+        const newCard = sections[currentSectionIndex].cards[currentCardIndex + 1];
+        setFocusedElement(newCard);
+        newCard.focus();
+        newCard.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        e.preventDefault();
+      }
       break;
+
     case 'ArrowUp':
-      newIndex = Math.max(0, currentIndex - cols);
+      // Move to previous section, try to keep similar horizontal position
+      if (currentSectionIndex > 0) {
+        const newSectionIndex = currentSectionIndex - 1;
+        const newSection = sections[newSectionIndex];
+        // Try to maintain horizontal position, or go to last card if section is smaller
+        const newCardIndex = Math.min(currentCardIndex, newSection.cards.length - 1);
+        const newCard = newSection.cards[newCardIndex];
+        setFocusedElement(newCard);
+        newCard.focus();
+        newCard.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+        e.preventDefault();
+      }
       break;
+
     case 'ArrowDown':
-      newIndex = Math.min(allCards.length - 1, currentIndex + cols);
+      // Move to next section, try to keep similar horizontal position
+      if (currentSectionIndex < sections.length - 1) {
+        const newSectionIndex = currentSectionIndex + 1;
+        const newSection = sections[newSectionIndex];
+        // Try to maintain horizontal position, or go to last card if section is smaller
+        const newCardIndex = Math.min(currentCardIndex, newSection.cards.length - 1);
+        const newCard = newSection.cards[newCardIndex];
+        setFocusedElement(newCard);
+        newCard.focus();
+        newCard.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+        e.preventDefault();
+      }
       break;
+
     case 'Enter':
     case ' ':
-      if (allCards[currentIndex]) {
-        allCards[currentIndex].click();
+      if (focusedCard) {
+        focusedCard.click();
       }
       e.preventDefault();
       break;
+
     case 'Escape':
       // Clear search if active, otherwise blur current element
       if (appState.searchQuery) {
@@ -2313,21 +2413,10 @@ function handleKeyboard(e) {
       }
       e.preventDefault();
       break;
+
     default:
       return;
   }
-
-  if (newIndex !== currentIndex && allCards[newIndex]) {
-    setFocusedElement(allCards[newIndex]);
-    allCards[newIndex].focus();
-    allCards[newIndex].scrollIntoView({
-      behavior: 'smooth',
-      block: 'nearest',
-      inline: 'nearest'
-    });
-  }
-
-  e.preventDefault();
 }
 
 function handleModalKeyboard(e) {
