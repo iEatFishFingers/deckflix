@@ -15,7 +15,8 @@ let appState = {
   focusIndex: 0,
   currentSection: 'movies',
   searchQuery: '',
-  searchTimeout: null
+  searchTimeout: null,
+  searchFilter: 'all'  // 'all', 'movies', 'series', 'anime'
 };
 
 // DOM elements
@@ -119,6 +120,7 @@ async function initApp() {
       searchLoading: document.getElementById('search-loading'),
       searchError: document.getElementById('search-error'),
       searchResultsCount: document.getElementById('search-results-count'),
+      searchTabs: document.querySelectorAll('.search-tab'),
 
       // Continue watching elements
       continueWatchingSection: document.getElementById('continue-watching-section'),
@@ -213,6 +215,21 @@ function setupEventListeners() {
   // Search functionality
   elements.searchInput.addEventListener('input', handleSearchInput);
   elements.searchClear.addEventListener('click', clearSearch);
+
+  // Search tabs
+  elements.searchTabs.forEach(tab => {
+    tab.addEventListener('click', (e) => {
+      const filterType = e.target.dataset.tab;
+
+      // Update active tab
+      elements.searchTabs.forEach(t => t.classList.remove('active'));
+      e.target.classList.add('active');
+
+      // Update filter and redisplay results
+      appState.searchFilter = filterType;
+      displaySearchResults(appState.searchResults);
+    });
+  });
 
   // Retry buttons for each section
   document.querySelectorAll('.retry-btn').forEach(btn => {
@@ -456,6 +473,16 @@ function clearSearch() {
   appState.searchQuery = '';
   appState.searchResults = [];
   appState.isSearching = false;
+  appState.searchFilter = 'all';
+
+  // Reset tabs to 'all'
+  elements.searchTabs.forEach(tab => {
+    if (tab.dataset.tab === 'all') {
+      tab.classList.add('active');
+    } else {
+      tab.classList.remove('active');
+    }
+  });
 
   // Clear search loading and error states
   elements.searchLoading.classList.add('hidden');
@@ -509,6 +536,16 @@ async function performSearch(query) {
   DEBUG.log('SEARCH', `Starting comprehensive search for: "${query}"`);
 
   try {
+    // Reset search filter to 'all' for new searches
+    appState.searchFilter = 'all';
+    elements.searchTabs.forEach(tab => {
+      if (tab.dataset.tab === 'all') {
+        tab.classList.add('active');
+      } else {
+        tab.classList.remove('active');
+      }
+    });
+
     // Show search loading
     DEBUG.log('SEARCH', 'Showing search loading UI');
     elements.searchLoading.classList.remove('hidden');
@@ -1138,6 +1175,19 @@ function displaySearchResults(results) {
   const validResults = validateAndFilterSearchResults(results);
   DEBUG.log('SEARCH_DISPLAY', `Filtered to ${validResults.length} valid results from ${results.length} total`);
 
+  // Filter by tab selection
+  let filteredResults = validResults;
+  if (appState.searchFilter !== 'all') {
+    filteredResults = validResults.filter(result => {
+      // IMPORTANT: Rust serializes content_type as "type" in JSON
+      const contentType = result.type || 'movie';
+      // Map 'movies' to 'movie' for comparison
+      const filterType = appState.searchFilter === 'movies' ? 'movie' : appState.searchFilter;
+      return contentType === filterType;
+    });
+    DEBUG.log('SEARCH_DISPLAY', `Tab filter '${appState.searchFilter}' reduced results to ${filteredResults.length}`);
+  }
+
   elements.searchGrid.innerHTML = '';
 
   let successCount = 0;
@@ -1147,7 +1197,7 @@ function displaySearchResults(results) {
   let movieCount = 0;
   let seriesCount = 0;
 
-  validResults.forEach((result, index) => {
+  filteredResults.forEach((result, index) => {
     try {
       DEBUG.log('SEARCH_DISPLAY', `Processing result ${index + 1}/${validResults.length}`, {
         name: result.name || result.title,

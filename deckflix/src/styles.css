@@ -594,6 +594,45 @@ body {
   display: inline-block;
 }
 
+/* Search tabs */
+.search-tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  padding: 0;
+}
+
+.search-tab {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 2px solid transparent;
+  padding: 10px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.search-tab:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.search-tab.active {
+  background: var(--accent);
+  color: var(--bg-primary);
+  border-color: var(--accent);
+}
+
+.search-tab:focus,
+.search-tab.focused {
+  outline: none;
+  border-color: var(--focus-color);
+  box-shadow: var(--focus-shadow);
+}
+
 /* Fallback card styling */
 .fallback-card {
   border: 2px dashed var(--bg-tertiary);
