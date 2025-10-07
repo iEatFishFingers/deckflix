@@ -60,32 +60,190 @@ async fn play_video_external(
 
         // Start Peerflix streaming
         let streamer = state.streamer.lock().await;
-        let local_url = streamer.start_stream(stream_url).await?;
+        let torrent_dir = streamer.start_stream(stream_url).await?;
 
-        println!("[RUST] [VIDEO_PLAYER] 🎯 Peerflix stream ready at: {}", local_url);
-        println!("[RUST] [VIDEO_PLAYER] 📺 Returning stream URL to frontend for built-in player");
+        println!("[RUST] [VIDEO_PLAYER] 🎯 Torrent directory: {}", torrent_dir);
+        println!("[RUST] [VIDEO_PLAYER] 🔍 Waiting for video file to appear in directory...");
 
-        // Return the local stream URL to the frontend
-        // The frontend will play it in the built-in HTML5 video player
-        return Ok(local_url);
+        // Find the largest video file in the torrent directory
+        use std::fs;
+        use std::path::Path;
+        use std::time::Duration;
+
+        let path = Path::new(&torrent_dir);
+
+        // Wait for directory to be created (max 30 seconds)
+        let mut attempts = 0;
+        let max_attempts = 60; // 60 attempts * 500ms = 30 seconds
+        while !path.exists() && attempts < max_attempts {
+            println!("[RUST] [VIDEO_PLAYER] ⏳ Waiting for torrent directory to be created... (attempt {}/{})", attempts + 1, max_attempts);
+            tokio::time::sleep(Duration::from_millis(500)).await;
+            attempts += 1;
+        }
+
+        if !path.exists() {
+            return Err(format!("Torrent directory was not created after {} seconds: {}", max_attempts / 2, torrent_dir));
+        }
+
+        println!("[RUST] [VIDEO_PLAYER] ✅ Torrent directory exists");
+
+        let video_extensions = vec!["mp4", "mkv", "avi", "mov", "wmv", "flv", "webm", "m4v"];
+        let mut video_files: Vec<(String, u64)> = Vec::new();
+
+        // Recursively search for video files
+        fn find_videos(dir: &Path, extensions: &[&str], files: &mut Vec<(String, u64)>) -> std::io::Result<()> {
+            if dir.is_dir() {
+                for entry in fs::read_dir(dir)? {
+                    let entry = entry?;
+                    let path = entry.path();
+                    if path.is_dir() {
+                        find_videos(&path, extensions, files)?;
+                    } else if let Some(ext) = path.extension() {
+                        if extensions.contains(&ext.to_str().unwrap_or("").to_lowercase().as_str()) {
+                            if let Ok(metadata) = fs::metadata(&path) {
+                                files.push((path.to_string_lossy().to_string(), metadata.len()));
+                                println!("[RUST] [VIDEO_PLAYER] Found video: {} ({} bytes)", path.display(), metadata.len());
+                            }
+                        }
+                    }
+                }
+            }
+            Ok(())
+        }
+
+        // Wait for video files to appear (max 60 seconds)
+        let mut video_attempts = 0;
+        let max_video_attempts = 120; // 120 attempts * 500ms = 60 seconds
+
+        while video_files.is_empty() && video_attempts < max_video_attempts {
+            video_files.clear();
+            if let Err(e) = find_videos(path, &video_extensions, &mut video_files) {
+                println!("[RUST] [VIDEO_PLAYER] ⚠️  Error searching for videos: {}", e);
+            }
+
+            if video_files.is_empty() {
+                println!("[RUST] [VIDEO_PLAYER] ⏳ Waiting for video files to appear... (attempt {}/{}, found {} files)",
+                    video_attempts + 1, max_video_attempts, video_files.len());
+                tokio::time::sleep(Duration::from_millis(500)).await;
+                video_attempts += 1;
+            }
+        }
+
+        if video_files.is_empty() {
+            return Err(format!("No video files found in torrent directory after {} seconds: {}", max_video_attempts / 2, torrent_dir));
+        }
+
+        println!("[RUST] [VIDEO_PLAYER] ✅ Found {} video file(s)", video_files.len());
+
+        // Wait for the video file to have some data downloaded (at least 10 MB)
+        let min_file_size = 10 * 1024 * 1024; // 10 MB
+        let mut size_attempts = 0;
+        let max_size_attempts = 60; // 60 attempts * 500ms = 30 seconds
+
+        // Sort by size (largest first) and take the largest one
+        video_files.sort_by(|a, b| b.1.cmp(&a.1));
+        let video_path = video_files[0].0.clone();
+
+        println!("[RUST] [VIDEO_PLAYER] 📦 Selected video: {}", video_path);
+        println!("[RUST] [VIDEO_PLAYER] ⏳ Waiting for video file to have sufficient data downloaded...");
+
+        while size_attempts < max_size_attempts {
+            if let Ok(metadata) = fs::metadata(&video_path) {
+                let current_size = metadata.len();
+                println!("[RUST] [VIDEO_PLAYER] 📊 Current file size: {:.2} MB", current_size as f64 / 1024.0 / 1024.0);
+
+                if current_size >= min_file_size {
+                    println!("[RUST] [VIDEO_PLAYER] ✅ Video file has sufficient data ({:.2} MB >= 10 MB)", current_size as f64 / 1024.0 / 1024.0);
+                    break;
+                }
+            }
+
+            tokio::time::sleep(Duration::from_millis(500)).await;
+            size_attempts += 1;
+        }
+
+        println!("[RUST] [VIDEO_PLAYER] 🎬 Ready to launch MPV with video file");
+
+        println!("[RUST] [VIDEO_PLAYER] 🎬 Selected video file: {}", video_path);
+        println!("[RUST] [VIDEO_PLAYER] 📺 Launching MPV player with video file");
+
+        // Launch MPV with the video file path - cross-platform support
+        let mpv_players: Vec<&str> = if cfg!(target_os = "windows") {
+            vec![
+                "mpv",
+                "C:\\Program Files\\mpv\\mpv.exe",
+                "C:\\Program Files (x86)\\mpv\\mpv.exe",
+            ]
+        } else {
+            vec![
+                "mpv",                              // System PATH
+                "flatpak run io.mpv.Mpv",          // Steam Deck Flatpak MPV
+                "/usr/bin/mpv",                    // Linux standard location
+                "/usr/local/bin/mpv",              // Alternative Linux location
+                "/app/bin/mpv",                    // Flatpak location
+            ]
+        };
+
+        for player in mpv_players.iter() {
+            println!("[RUST] [VIDEO_PLAYER] Trying MPV at: {}", player);
+
+            // Handle Flatpak commands specially
+            let result = if player.contains("flatpak run") {
+                let parts: Vec<&str> = player.split_whitespace().collect();
+                if parts.len() >= 3 {
+                    let flatpak_app = parts[2];
+                    println!("[RUST] [VIDEO_PLAYER] Launching Flatpak app: {}", flatpak_app);
+                    shell.command("flatpak")
+                        .args(&["run", flatpak_app])
+                        .arg(&video_path)
+                        .spawn()
+                } else {
+                    continue;
+                }
+            } else {
+                shell.command(player).arg(&video_path).spawn()
+            };
+
+            match result {
+                Ok((mut rx, mut child)) => {
+                    let success_msg = format!("Successfully launched MPV with video file (PID: {:?})", child.pid());
+                    println!("[RUST] [VIDEO_PLAYER] ✅ {}", success_msg);
+                    return Ok(success_msg);
+                }
+                Err(e) => {
+                    println!("[RUST] [VIDEO_PLAYER] ❌ Failed to launch {}: {:?}", player, e);
+                    continue;
+                }
+            }
+        }
+
+        return Err("MPV player not found. Please install MPV from mpv.io or via your package manager".to_string());
     }
 
-    // Direct HTTP URL - use existing code
+    // Direct HTTP URL - cross-platform video player support
     println!("[RUST] [VIDEO_PLAYER] Processing direct URL stream...");
-    
-    // Try different video players in order of preference
-    // Prioritizing VLC with Windows-specific paths
-    let players = vec![
-        "vlc",                                          // System VLC (first choice)
-        "C:\\Program Files\\VideoLAN\\VLC\\vlc.exe",    // Windows VLC default install
-        "C:\\Program Files (x86)\\VideoLAN\\VLC\\vlc.exe", // Windows VLC 32-bit install
-        "mpv",                                          // System MPV
-        "flatpak run org.videolan.VLC",                // Steam Deck Flatpak VLC
-        "flatpak run io.mpv.Mpv",                      // Steam Deck Flatpak MPV
-        "/usr/bin/vlc",                                 // Explicit path for Linux VLC
-        "/usr/bin/mpv",                                 // Explicit path for Linux MPV
-        "xdg-open"                                      // Fallback for Linux
-    ];
+
+    // Try different video players in order of preference - cross-platform
+    let players: Vec<&str> = if cfg!(target_os = "windows") {
+        vec![
+            "vlc",                                          // System VLC
+            "C:\\Program Files\\VideoLAN\\VLC\\vlc.exe",    // Windows VLC 64-bit
+            "C:\\Program Files (x86)\\VideoLAN\\VLC\\vlc.exe", // Windows VLC 32-bit
+            "mpv",                                          // System MPV
+            "C:\\Program Files\\mpv\\mpv.exe",             // Windows MPV
+        ]
+    } else {
+        vec![
+            "mpv",                                          // System MPV (first choice for Linux)
+            "flatpak run io.mpv.Mpv",                      // Steam Deck Flatpak MPV
+            "vlc",                                          // System VLC
+            "flatpak run org.videolan.VLC",                // Steam Deck Flatpak VLC
+            "/usr/bin/mpv",                                 // Explicit path for Linux MPV
+            "/usr/bin/vlc",                                 // Explicit path for Linux VLC
+            "/usr/local/bin/mpv",                          // Alternative MPV location
+            "xdg-open"                                      // Fallback for Linux
+        ]
+    };
 
     println!("[RUST] [VIDEO_PLAYER] Available video players to try: {:?}", players);
     println!("[RUST] [VIDEO_PLAYER] Starting player detection and launch sequence...");

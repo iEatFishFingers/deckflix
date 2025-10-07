@@ -26,14 +26,34 @@ impl TorrentStreamer {
         // Stop any existing stream first
         self.stop_stream().await?;
 
-        // Check if peerflix is installed - try different approaches for Windows
+        // Extract infohash from magnet link
+        let infohash = if let Some(start) = magnet_link.find("btih:") {
+            let hash_start = start + 5;
+            let hash_end = magnet_link[hash_start..].find('&').map(|p| hash_start + p).unwrap_or(magnet_link.len());
+            magnet_link[hash_start..hash_end].to_string()
+        } else {
+            return Err("Invalid magnet link: no infohash found".to_string());
+        };
+
+        println!("[RUST] [TORRENT] 🔑 Extracted infohash: {}", infohash);
+
+        // Check if peerflix is installed - cross-platform approach
         println!("[RUST] [TORRENT] 🔍 Checking if Peerflix is installed...");
 
-        let peerflix_commands = vec![
-            "peerflix",           // Try PATH version first
-            "peerflix.cmd",       // Windows specific
-            "C:\\Users\\yoann\\AppData\\Roaming\\npm\\peerflix.cmd", // Full path
-        ];
+        let peerflix_commands = if cfg!(target_os = "windows") {
+            vec![
+                "peerflix",
+                "peerflix.cmd",
+                "C:\\Users\\yoann\\AppData\\Roaming\\npm\\peerflix.cmd",
+            ]
+        } else {
+            vec![
+                "peerflix",                           // System PATH
+                "/usr/local/bin/peerflix",           // Common Linux location
+                "/usr/bin/peerflix",                 // Alternative Linux location
+                "/home/deck/.local/bin/peerflix",    // Steam Deck user install
+            ]
+        };
 
         let mut peerflix_found = false;
         let mut working_command = "peerflix";
@@ -103,32 +123,25 @@ impl TorrentStreamer {
         // Store process handle
         *self.peerflix_process.lock().await = Some(child);
 
-        // Peerflix serves at this URL
-        let url = format!("http://127.0.0.1:{}", self.stream_port);
-        *self.stream_url.lock().await = Some(url.clone());
+        // Peerflix downloads to different locations based on OS
+        let torrent_dir = if cfg!(target_os = "windows") {
+            format!("C:\\tmp\\torrent-stream\\{}", infohash)
+        } else {
+            // Linux/Steam Deck - peerflix uses /tmp by default
+            format!("/tmp/torrent-stream/{}", infohash)
+        };
 
-        println!("[RUST] [TORRENT] 📡 Stream will be available at: {}", url);
-        println!("[RUST] [TORRENT] ⏳ Waiting for Peerflix to initialize and start downloading...");
+        println!("[RUST] [TORRENT] 📂 Torrent directory: {}", torrent_dir);
+        println!("[RUST] [TORRENT] ⏳ Waiting for Peerflix to create torrent directory...");
 
-        // Wait for peerflix to initialize and start downloading
-        tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+        // Wait for peerflix to initialize and create the directory
+        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
 
-        println!("[RUST] [TORRENT] 🎯 Testing stream availability...");
+        // Return the torrent directory path - we'll find the video file later
+        *self.stream_url.lock().await = Some(torrent_dir.clone());
 
-        // Test if the stream is responding
-        match self.test_stream_availability(&url).await {
-            Ok(_) => {
-                println!("[RUST] [TORRENT] ✅ Stream is ready and responding!");
-                println!("[RUST] [TORRENT] 📺 Ready for video player launch");
-                Ok(url)
-            }
-            Err(e) => {
-                println!("[RUST] [TORRENT] ⚠️  Stream not immediately available: {}", e);
-                println!("[RUST] [TORRENT] 🔄 This is normal - Peerflix is still connecting to peers");
-                println!("[RUST] [TORRENT] 📺 Proceeding with video player launch anyway");
-                Ok(url)
-            }
-        }
+        println!("[RUST] [TORRENT] 📺 Ready for video player launch");
+        Ok(torrent_dir)
     }
 
     async fn test_stream_availability(&self, url: &str) -> Result<(), String> {
