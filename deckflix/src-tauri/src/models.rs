@@ -192,11 +192,3 @@ pub struct ContinueWatchingItem {
     pub season: Option<u32>,
     pub episode: Option<u32>,
 }
-
-// Video metadata for player
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct VideoMetadata {
-    pub title: String,
-    pub year: Option<String>,
-    pub content_type: String,
-}

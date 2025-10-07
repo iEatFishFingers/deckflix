@@ -5,8 +5,7 @@
       "Bash(cargo test)",
       "Bash(cargo:*)",
       "Bash(npm run tauri:*)",
-      "Bash(where peerflix)",
-      "Bash(mpv:*)"
+      "Bash(where peerflix)"
     ],
     "deny": [],
     "ask": []
